@@ -1,0 +1,227 @@
+name: TicketPilot CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      checked_sha:
+        description: Commit validated by the application checks
+        value: ${{ jobs.application.outputs.checked_sha }}
+      application_report_name:
+        description: Allowlisted application and browser report artifact
+        value: ${{ jobs.application.outputs.report_name }}
+      container_report_name:
+        description: Allowlisted local-stack and Lambda validation artifact
+        value: ${{ jobs.containers.outputs.report_name }}
+
+# Every job grants only the read permission it needs. No AWS or package-publish token.
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PYTHONUNBUFFERED: '1'
+  AWS_EC2_METADATA_DISABLED: 'true'
+  LLM_PROVIDER: none
+
+jobs:
+  application:
+    name: Tests and apartment browser workflow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      checked_sha: ${{ steps.metadata.outputs.checked_sha }}
+      report_name: ${{ steps.metadata.outputs.report_name }}
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-cloud.txt
+            requirements-dev.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install project dependencies in the browser check's environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements-dev.txt
+          printf '%s\n' "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          mkdir -p .tools
+      - name: Record non-secret build metadata
+        id: metadata
+        run: |
+          python - <<'PY'
+          import json, os, platform
+          from pathlib import Path
+          Path('.tools/ci-build.json').write_text(json.dumps({
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'commit': os.environ['GITHUB_SHA'],
+              'ref': os.environ['GITHUB_REF'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'python': platform.python_version(),
+              'scope': 'Local and emulated checks only; no AWS deployment',
+          }, indent=2) + '\n', encoding='utf-8')
+          PY
+          printf 'checked_sha=%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          printf 'report_name=ci-application-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Run the complete test suite
+        run: python -m pytest -q --junitxml=.tools/junit.xml
+      - name: Record the legacy synthetic evaluation
+        # This is the old IT demo's authored smoke set, not apartment-domain accuracy.
+        run: python -m ticketpilot.evaluate_pipeline > .tools/legacy-synthetic-evaluation.json
+      - name: Check browser script syntax
+        run: |
+          node --check ticketpilot/static/apartments.js
+          node --check scripts/validate_apartment_browser.cjs
+      - name: Install isolated browser-test tooling
+        run: |
+          npm install --prefix .tools/browser --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          # Standard Ubuntu runners include Chrome; retain a supported fallback.
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            .tools/browser/node_modules/.bin/playwright install --with-deps chrome
+          fi
+      - name: Validate the tenant and manager screens in Chrome
+        run: node scripts/validate_apartment_browser.cjs
+      - name: Keep application evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-application-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 3
+          if-no-files-found: warn
+          # Explicit allowlist: never upload the whole .tools directory.
+          include-hidden-files: true
+          path: |
+            .tools/ci-build.json
+            .tools/junit.xml
+            .tools/legacy-synthetic-evaluation.json
+            .tools/apartment-browser-validation.json
+            .tools/apartment-tenant-mobile.png
+            .tools/apartment-manager-desktop.png
+
+  containers:
+    name: Docker, monitoring and Lambda runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      report_name: ${{ steps.metadata.outputs.report_name }}
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-cloud.txt
+            requirements-dev.txt
+      - name: Install validation dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Create ephemeral local test configuration
+        id: setup_local
+        run: |
+          mkdir -p .tools
+          python scripts/setup_local.py
+          docker compose --profile local config --quiet
+      - name: Record container-check metadata
+        id: metadata
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path('.tools/ci-containers.json').write_text(json.dumps({
+              'commit': os.environ['GITHUB_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'lambda_image': 'ticketpilot-aws-lambda:ci',
+              'platform': 'linux/amd64',
+              'scope': 'Disposable local Docker services; no AWS credentials',
+          }, indent=2) + '\n', encoding='utf-8')
+          PY
+          printf 'report_name=ci-containers-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Validate Prometheus scrape configurations and alert rules
+        run: |
+          for config in local.yml aws.yml aws-host.yml; do
+            docker run --rm --entrypoint /bin/promtool \
+              -v "$GITHUB_WORKSPACE/monitoring/prometheus:/etc/prometheus:ro" \
+              -v "$GITHUB_WORKSPACE/.secrets/metrics-token:/run/secrets/metrics-token:ro" \
+              prom/prometheus:v3.14.0 check config "/etc/prometheus/$config"
+          done
+          docker run --rm --entrypoint /bin/promtool \
+            -v "$GITHUB_WORKSPACE/monitoring/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.14.0 check rules /etc/prometheus/alerts.yml
+      - name: Build and validate the local app and monitoring
+        run: |
+          docker compose --profile local up --build -d
+          python scripts/validate_local_stack.py --restart-app
+      - name: Build and validate the Lambda runtime
+        run: |
+          docker buildx build --platform linux/amd64 --provenance=false --load \
+            -f Dockerfile.lambda -t ticketpilot-aws-lambda:ci .
+          python scripts/validate_lambda_image.py --image ticketpilot-aws-lambda:ci
+      - name: Stop disposable local services
+        if: ${{ always() && steps.setup_local.outcome == 'success' }}
+        run: docker compose --profile local down --volumes
+      - name: Keep container validation evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-containers-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 3
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            .tools/ci-containers.json
+            .tools/local-validation.json
+            .tools/lambda-validation.json
+
+  terraform:
+    name: Terraform configuration validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.13.5'
+          terraform_wrapper: false
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra
+      - name: Validate both stacks without cloud state or credentials
+        run: |
+          terraform -chdir=infra/bootstrap init -backend=false -input=false -lockfile=readonly
+          terraform -chdir=infra/bootstrap validate
+          terraform -chdir=infra/aws init -backend=false -input=false -lockfile=readonly
+          terraform -chdir=infra/aws validate

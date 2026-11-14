@@ -1,0 +1,5 @@
+FROM python:3.11-slim
+WORKDIR /exporter
+RUN pip install --no-cache-dir 'boto3>=1.40,<2' 'prometheus-client>=0.21,<1'
+COPY monitoring/cloudwatch_exporter.py .
+CMD ["python", "cloudwatch_exporter.py"]

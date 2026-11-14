@@ -1,0 +1,31 @@
+groups:
+  - name: ticketpilot
+    rules:
+      - alert: TicketPilotUnavailable
+        expr: up{job="ticketpilot"} == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: TicketPilot scrape has failed for three minutes
+      - alert: TicketPilotServerErrors
+        expr: sum(rate(ticketpilot_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(ticketpilot_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than five percent of API responses are server errors
+      - alert: TicketPilotCloudWatchUnavailable
+        expr: up{job="ticketpilot-cloudwatch"} == 0 or ticketpilot_cloudwatch_exporter_up == 0
+        for: 6m
+        labels:
+          severity: warning
+        annotations:
+          summary: AWS CloudWatch exporter is unavailable or cannot read metrics
+      - alert: TicketPilotLambdaErrors
+        expr: ticketpilot_lambda_errors_window > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Lambda reported errors in the last observed CloudWatch period

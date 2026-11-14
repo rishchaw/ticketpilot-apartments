@@ -1,0 +1,5 @@
+region    = "ap-southeast-1"
+image_uri = "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/ticketpilot-aws@sha256:REPLACE_WITH_DIGEST"
+# Keep disabled until you verify Bedrock model availability and account access.
+enable_bedrock = false
+# protect_ticket_data = false # Set only when intentionally removing demo records.

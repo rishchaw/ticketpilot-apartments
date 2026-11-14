@@ -1,0 +1,25 @@
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+.env
+.gcloud/
+*.zip
+.env.*
+!.env.example
+.secrets/
+.tools/
+.terraform/
+*.tfstate*
+*.tfvars
+!*.tfvars.example
+*.tfplan
+monitoring/prometheus/cloud.yml
+dist/
+
+# Generated only when configuring remote CI state
+infra/aws/backend.ci.tf
+*.tfbackend

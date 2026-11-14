@@ -1,0 +1,16 @@
+services:
+  prometheus:
+    volumes:
+      - ./monitoring/prometheus/aws.yml:/etc/prometheus/prometheus.yml:ro
+  cloudwatch-exporter:
+    build:
+      context: .
+      dockerfile: monitoring/Dockerfile.exporter
+    environment:
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      AWS_LAMBDA_FUNCTION_NAME: ticketpilot-aws
+      CLOUDWATCH_POLL_SECONDS: "300"
+    volumes:
+      - ${AWS_CONFIG_DIRECTORY:?Set AWS_CONFIG_DIRECTORY to your local .aws directory}:/root/.aws:ro
+    restart: unless-stopped

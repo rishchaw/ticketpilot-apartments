@@ -1,0 +1,48 @@
+name: ticketpilot-aws
+services:
+  app:
+    build: .
+    profiles: [local]
+    environment:
+      STORAGE_MODE: sqlite
+      APARTMENT_NAME: ${APARTMENT_NAME:-Our Apartment}
+      APARTMENT_UNITS: ${APARTMENT_UNITS:-1,2,3,4,5,6,7,8}
+      SQLITE_PATH: /app/state/operations.db
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Run scripts/setup_local.py first}
+      METRICS_TOKEN: ${METRICS_TOKEN:?Run scripts/setup_local.py first}
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-amazon.nova-micro-v1:0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-ap-southeast-2}
+      LLM_MAX_CALLS_PER_MINUTE: ${LLM_MAX_CALLS_PER_MINUTE:-3}
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: ["tickets:/app/state"]
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=512MB
+    ports: ["127.0.0.1:9090:9090"]
+    volumes:
+      - ${PROMETHEUS_CONFIG:-./monitoring/prometheus/local.yml}:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./.secrets/metrics-token:/run/secrets/metrics-token:ro
+      - prometheus:/prometheus
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run scripts/setup_local.py first}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+volumes:
+  tickets:
+  prometheus:
+  grafana:

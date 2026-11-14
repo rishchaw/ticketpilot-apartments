@@ -1,0 +1,9 @@
+-r requirements-cloud.txt
+pytest>=8,<10
+httpx>=0.27,<1
+moto[dynamodb,ssm]>=5,<6
+PyYAML>=6,<7
+python-hcl2>=7,<9
+
+# Console/browser login support for local deployment scripts (not required by the Lambda role).
+boto3[crt]>=1.41,<2

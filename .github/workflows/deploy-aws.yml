@@ -1,0 +1,125 @@
+name: TicketPilot AWS promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful container-release run ID to promote
+        required: true
+        type: string
+      account_activation_confirmed:
+        description: AWS activation and service access have been confirmed
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ticketpilot-aws-deployment
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require explicit deployment setup and activation confirmation
+        env:
+          ENABLED: ${{ vars.AWS_DEPLOY_ENABLED }}
+          CONFIRMED: ${{ inputs.account_activation_confirmed }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || { echo 'Use the default branch.' >&2; exit 1; }
+          test "$ENABLED" = true || { echo 'AWS deployment is disabled. Complete docs/CI_CD.md setup first.' >&2; exit 1; }
+          test "$CONFIRMED" = true || { echo 'AWS account activation must be confirmed.' >&2; exit 1; }
+
+  select:
+    needs: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      commit: ${{ steps.manifest.outputs.commit }}
+      lambda_ref: ${{ steps.manifest.outputs.lambda_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify release run before requesting cloud credentials
+        id: run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python scripts/select_release.py --run-id "$RELEASE_RUN_ID" --repository "$GITHUB_REPOSITORY" --default-branch "$DEFAULT_BRANCH"
+      - name: Download only the selected release manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERIFIED_RUN_ID: ${{ steps.run.outputs.run_id }}
+        run: gh run download "$VERIFIED_RUN_ID" --repo "$GITHUB_REPOSITORY" --name release-manifest --dir .tools/release
+      - name: Verify repository, commit, run ID and immutable image digest
+        id: manifest
+        env:
+          VERIFIED_RUN_ID: ${{ steps.run.outputs.run_id }}
+          VERIFIED_COMMIT: ${{ steps.run.outputs.commit }}
+        run: python scripts/release_manifest.py verify --path .tools/release/release.json --repository "$GITHUB_REPOSITORY" --commit "$VERIFIED_COMMIT" --run-id "$VERIFIED_RUN_ID"
+
+  deploy:
+    needs: select
+    environment: aws-demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    env:
+      AWS_REGION: ap-southeast-1
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+      RELEASE_COMMIT: ${{ needs.select.outputs.commit }}
+      RELEASE_LAMBDA_REF: ${{ needs.select.outputs.lambda_ref }}
+      TF_IN_AUTOMATION: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.select.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.13.5'
+          terraform_wrapper: false
+      - name: Validate mandatory cloud configuration
+        env:
+          ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          test -n "$TF_STATE_BUCKET" && test -n "$TF_STATE_KEY"
+          [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]
+          [[ "$ROLE_ARN" == "arn:aws:iam::$AWS_ACCOUNT_ID:role/"* ]]
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-1
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: ticketpilot-github-deploy
+          role-duration-seconds: 1800
+      - name: Install only local verification dependencies
+        run: python -m pip install 'httpx>=0.27,<1'
+      - name: Read the selected private/public GHCR package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s\n' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Promote the tested image with Terraform
+        run: bash scripts/deploy_ci.sh

@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: TicketPilot
+    folder: TicketPilot
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

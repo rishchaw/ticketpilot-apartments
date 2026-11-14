@@ -1,0 +1,131 @@
+name: TicketPilot container release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ticketpilot-container-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  default-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+            echo 'Run releases from the repository default branch.' >&2
+            exit 1
+          }
+
+  checks:
+    needs: default-branch
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  publish:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-cloud.txt
+            requirements-dev.txt
+      - name: Prepare isolated validation environment
+        run: |
+          python -m venv .venv
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          .venv/bin/python -m pip install -r requirements-dev.txt
+          .venv/bin/python scripts/setup_local.py
+          mkdir -p .tools
+      - name: Build the exact release images
+        run: |
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA" -t ticketpilot-aws-app .
+          docker buildx build --platform linux/amd64 --provenance=false --load --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA" -f Dockerfile.lambda -t ticketpilot-aws-lambda:release .
+      - name: Validate the exact release images before publication
+        run: |
+          docker compose --profile local up -d --no-build
+          python scripts/validate_local_stack.py --restart-app
+          python scripts/validate_lambda_image.py --image ticketpilot-aws-lambda:release
+      - name: Log in to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s\n' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Publish commit-addressed images
+        id: images
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          app_image="ghcr.io/$repository"
+          lambda_image="ghcr.io/$repository-lambda"
+          tag="sha-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker tag ticketpilot-aws-app "$app_image:$tag"
+          docker tag ticketpilot-aws-lambda:release "$lambda_image:$tag"
+          docker push "$app_image:$tag"
+          docker push "$lambda_image:$tag"
+          export APP_IMAGE="$app_image" LAMBDA_IMAGE="$lambda_image" IMAGE_TAG="$tag"
+          python - <<'PY'
+          import json, os, re, subprocess
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              for key in ('app', 'lambda'):
+                  image = os.environ[key.upper() + '_IMAGE']
+                  item = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image + ':' + os.environ['IMAGE_TAG']], text=True))[0]
+                  refs = [ref for ref in item['RepoDigests'] if ref.startswith(image + '@')]
+                  if len(refs) != 1:
+                      raise SystemExit('Cannot identify the pushed image digest')
+                  digest = refs[0].split('@', 1)[1]
+                  if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+                      raise SystemExit('Registry did not return a valid immutable digest')
+                  output.write(key + '_digest=' + digest + '\n')
+          PY
+      - name: Record release provenance and package source
+        env:
+          APP_DIGEST: ${{ steps.images.outputs.app_digest }}
+          LAMBDA_DIGEST: ${{ steps.images.outputs.lambda_digest }}
+        run: |
+          python scripts/release_manifest.py write --repository "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --app-digest "$APP_DIGEST" --lambda-digest "$LAMBDA_DIGEST" --output .tools/release.json
+          python scripts/package_source.py
+          {
+            echo '### Tested container delivery'
+            echo "Commit: $GITHUB_SHA"
+            echo "App: ghcr.io/${GITHUB_REPOSITORY,,}@$APP_DIGEST"
+            echo "Lambda: ghcr.io/${GITHUB_REPOSITORY,,}-lambda@$LAMBDA_DIGEST"
+            echo "AWS promotion input release_run_id: $GITHUB_RUN_ID"
+            echo 'Publication is not an AWS deployment.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-manifest
+          path: .tools/release.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ticketpilot-source
+          path: dist/ticketpilot-aws-source.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Stop only the release validation stack
+        if: always()
+        run: docker compose --profile local down
