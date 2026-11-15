@@ -1,3 +1,15 @@
+# GitHub repository and CI/CD
+
+The standalone project is now public at https://github.com/rishchaw/ticketpilot-apartments under the verified GitHub CLI account `rishchaw`. The original parent projects were not uploaded. Reviewed source excludes local credentials, databases, tools and Terraform state/plans.
+
+GitHub CI runs tests, the real apartment browser workflow, Docker/monitoring, Lambda emulation and Terraform checks. The initial hosted run passed application/browser and container checks but exposed a Windows-only provider-lock checksum problem; both Terraform roots now record signed Linux and Windows AWS provider 6.72.0 checksums. Current hosted results are visible in the repository Actions tab.
+
+Manual container delivery publishes tested app/Lambda images to GHCR with immutable digest/provenance manifests. AWS promotion is manual, requires an existing deployment plus remote state and OIDC, and is explicitly disabled with repository variable `AWS_DEPLOY_ENABLED=false`. The `aws-demo` environment allows only the main branch. No AWS credentials or resources were configured during GitHub setup.
+
+See CI_CD.md for workflow triggers, setup, free-platform limits and the separation between GitHub code/container delivery and actual application hosting.
+
+---
+
 # Latest deployment retry: AWS service access still blocked
 
 The user requested another deployment attempt. AWS MCP tools were not exposed in this chat, so the documented AWS CLI fallback was used with profile `ticketpilot` in Singapore (`ap-southeast-1`). STS GetCallerIdentity succeeded at the beginning of the retry.
