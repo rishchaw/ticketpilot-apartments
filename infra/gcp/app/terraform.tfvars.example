@@ -1,0 +1,15 @@
+# Bootstrap this same existing project/region first. Do not commit your actual IDs.
+project_id = "your-gcp-project-id"
+region     = "asia-southeast1"
+image_uri  = "asia-southeast1-docker.pkg.dev/your-gcp-project-id/ticketpilot-apartments/app@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+# False leaves an existing default database unmodified. Set true only when the database does not exist.
+manage_database       = false
+firestore_database_id = "(default)"
+memory                = "512Mi"
+manager_refresh_seconds = 0
+queue_limit             = 20
+
+# Optional display settings; do not commit real tenant records.
+apartment_name  = "Our Apartment"
+apartment_units = "1,2,3,4,5,6,7,8"

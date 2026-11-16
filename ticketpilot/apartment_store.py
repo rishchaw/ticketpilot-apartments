@@ -9,7 +9,13 @@ class Conflict(Exception):
 
 def save(record: dict, expected_version: int | None = None) -> dict:
     record = {**record, "version": (expected_version or 0) + 1}
-    if storage.mode() == "dynamodb":
+    if storage.mode() == "firestore":
+        from ticketpilot import firestore_store
+        try:
+            firestore_store.apartment_save(record, expected_version)
+        except firestore_store.Conflict as exc:
+            raise Conflict("Record changed; refresh before saving") from exc
+    elif storage.mode() == "dynamodb":
         from boto3.dynamodb.conditions import Attr
         table = storage._dynamodb()
         condition = Attr("id").not_exists() if expected_version is None else Attr("version").eq(expected_version)
@@ -35,6 +41,9 @@ def save(record: dict, expected_version: int | None = None) -> dict:
 
 
 def get(record_id: str) -> dict | None:
+    if storage.mode() == "firestore":
+        from ticketpilot import firestore_store
+        return firestore_store.apartment_get(record_id)
     if storage.mode() == "dynamodb":
         item = storage._dynamodb().get_item(Key={"id": record_id}, ConsistentRead=True).get("Item")
         return {**storage._native(item), "queue": item["queue"]} if item else None
@@ -48,6 +57,9 @@ def get(record_id: str) -> dict | None:
 
 def recent(limit: int = 200) -> list[dict]:
     limit = max(1, min(limit, 200))
+    if storage.mode() == "firestore":
+        from ticketpilot import firestore_store
+        return firestore_store.apartment_recent(limit)
     if storage.mode() == "dynamodb":
         from boto3.dynamodb.conditions import Key
         result = storage._dynamodb().query(IndexName="recent-tickets", KeyConditionExpression=Key("queue").eq("apartment_tickets"), ScanIndexForward=False, Limit=limit)

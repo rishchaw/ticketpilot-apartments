@@ -6,31 +6,37 @@ A formal concern tracker for an eight-unit family-managed apartment building, re
 
 [![CI](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml/badge.svg)](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml)
 
-GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation and Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until account activation and bootstrap are complete. See [CI/CD setup and costs](docs/CI_CD.md).
+GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation, an isolated GCP/Firestore emulator workflow and AWS/GCP Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until account activation and bootstrap are complete. See [CI/CD setup and costs](docs/CI_CD.md).
 
 Publish this standalone folder as the repository root. Local .env/secrets, tenant databases, tools and Terraform state/plans are excluded. GitHub source/CI delivery does not host the Python application through Pages.
 
+## Deploy to GCP or AWS
+
+TicketPilot is live on [Google Cloud Run in Singapore](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant), deployed through Terraform with Firestore persistence and Secret Manager. It scales to zero, allows at most one configured instance, uses manual manager refresh and makes no paid AI calls. A USD 10/month gross-cost alert budget is installed; it is not a spending cap. Live tenant/manager privacy and SDK persistence checks passed with fictional records. Follow the [GCP guide](docs/GCP_DEPLOYMENT.md) and [current deployment status](docs/DEPLOYMENT_STATUS.md).
+
+AWS Lambda/DynamoDB deployment remains available in its separate Terraform roots and is paused while account activation is unresolved. Both paths use the same FastAPI application and apartment workflow. Local Compose uses SQLite; switching providers does not migrate tenant records. Prometheus/Grafana stay local, and the GCP profile makes no paid AI calls.
+
 ## Apartment portal
 
-- **Tenant form:** http://localhost:8080/tenant (also the homepage).
-- **Manager dashboard:** http://localhost:8080/manager. Use the existing `ADMIN_TOKEN` from your local `.env` as the manager access code; never give it to tenants.
+- **Live tenant form:** [https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant). The local form remains http://localhost:8080/tenant (also the local homepage).
+- **Manager dashboard:** [https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager), or http://localhost:8080/manager locally. Use the existing `ADMIN_TOKEN` from your local `.env` as the manager access code; never give it to tenants.
 - Concern categories: water/plumbing, maintenance, electrical, rent/utility billing, contract renewal, and other concerns.
 - Each report receives a reference and a private tracking link. Anyone holding that link can read and reply to that report. Unit selection does not verify identity and never grants access to other reports.
 - Managers can acknowledge, schedule, assign, update, resolve and reopen concerns; tenants can reply and reopen resolved reports. Private manager notes are excluded from tenant responses.
 - Reports from multiple units suggest a possible shared issue for manager review. A manager can publish one confirmed building-wide notice without exposing individual reports.
-- The open manager dashboard checks for reports every 30 seconds. Automatic Messenger/SMS/email notifications, verified tenant accounts, photo uploads, payment processing, and automatic contract decisions are not implemented.
+- The local/AWS manager dashboard checks for reports every 30 seconds; the GCP profile uses manual refresh to avoid unattended compute and database reads. Automatic Messenger/SMS/email notifications, verified tenant accounts, photo uploads, payment processing, and automatic contract decisions are not implemented.
 
-The portal currently runs on this PC only. `localhost` links cannot be used from tenants' phones. After a real HTTPS deployment, share the public `/tenant` link or encode that link as a QR code. Keep report-specific tracking links private and out of the group chat.
+The Cloud Run HTTPS `/tenant` link can be shared or encoded as a QR code after building guidance and onboarding are reviewed. `localhost` links work only on the development PC. Keep report-specific tracking links private and out of the group chat.
 
 Set `APARTMENT_NAME` and comma-separated `APARTMENT_UNITS` in `.env` before recreating the Compose app to customize the display name and unit labels. Defaults are **Our Apartment** and units **1-8**. No actual building policies, balances, renewal terms, or maintenance schedules have been invented.
 
 Tenant guidance is reviewed-form-style, category-based text with human updates; it does not use the old IT classifier or call a paid AI provider. The original IT classification/RAG demo is preserved at `/demo`, including optional owner-requested Bedrock generation. Its evaluation scores do not measure apartment-domain or bilingual performance.
 
-Apartment records use an isolated SQLite table locally and a separate query partition in the existing DynamoDB table when deployed. Writes use version checks to reject stale updates. Existing demo tickets are preserved. See [the apartment brief](docs/APARTMENT_USE_CASE.md), [local validation](docs/VALIDATION.md), and [deployment status](docs/DEPLOYMENT_STATUS.md).
+Apartment records use an isolated SQLite table locally, a separate query partition in DynamoDB for AWS, or separate Firestore collections for GCP. Cloud Run never relies on its disposable container filesystem for records. Writes use version checks to reject stale updates. Existing demo tickets are preserved. See [the apartment brief](docs/APARTMENT_USE_CASE.md), [local validation](docs/VALIDATION.md), and [deployment status](docs/DEPLOYMENT_STATUS.md).
 
-Grafana includes a separate **TicketPilot Apartment Operations** dashboard for submission/reply/update counters and API performance. Counters reset on process restart and are not queue-size or lifetime metrics. The manager dashboard reads actual stored concerns, limited to the newest 200 records and at most one DynamoDB query page. Use it for the queue rather than interpreting Prometheus counters as outstanding work.
+Grafana includes a separate **TicketPilot Apartment Operations** dashboard for submission/reply/update counters and API performance. Counters reset on process restart and are not queue-size or lifetime metrics. The manager dashboard reads actual stored concerns, limited to the newest 200 by default and 20 in the GCP profile; AWS also limits each listing to one DynamoDB query page. Use it for the queue rather than interpreting Prometheus counters as outstanding work.
 
-## Existing cloud architecture and support demo
+## Preserved AWS architecture and support demo
 
 Support ticket classification, runbook retrieval, owner ticket workflows, and optional Amazon Bedrock RAG. Deploy the FastAPI app and web dashboard to AWS Lambda with a public HTTPS Function URL. Store owner-saved tickets in DynamoDB. Terraform manages the infrastructure; Prometheus and Grafana provide local monitoring and optional AWS CloudWatch dashboards.
 
@@ -51,7 +57,7 @@ flowchart LR
     Prometheus --> Grafana
 ```
 
-The default application region is Singapore (`ap-southeast-1`), a practical starting point for visitors in the Philippines. Bedrock is disabled by default. Nova Micro's direct regional endpoint is configured in Sydney (`ap-southeast-2`), because Singapore requires a cross-region inference profile for this model. The optional generation request sends the ticket and retrieved context to that region.
+The default AWS application region is Singapore (`ap-southeast-1`), a practical starting point for visitors in the Philippines. Bedrock is disabled by default. Nova Micro's direct regional endpoint is configured in Sydney (`ap-southeast-2`), because Singapore requires a cross-region inference profile for this model. The optional generation request sends the ticket and retrieved context to that region.
 
 ## Run locally
 
@@ -143,4 +149,4 @@ The original support demo uses a single owner token. The apartment pilot uses pr
 
 ## Stop and clean up
 
-`docker compose down` stops local containers and preserves their data volumes. Cloud cleanup is described in [AWS_DEPLOYMENT.md](docs/AWS_DEPLOYMENT.md#cleanup). The DynamoDB table is protected from deletion by default. Bootstrap teardown deletes all images in the project's ECR repository. Preserve Terraform state files locally; do not publish credentials, `.env`, `.secrets`, state, plans, or personal records.
+`docker compose down` stops local containers and preserves their data volumes. Cloud cleanup is described in the [AWS guide](docs/AWS_DEPLOYMENT.md#cleanup) and [GCP guide](docs/GCP_DEPLOYMENT.md#stop-or-remove-the-demonstration). The DynamoDB table is protected from deletion by default. Bootstrap teardown deletes all images in the project's ECR repository. Preserve Terraform state files locally; do not publish credentials, `.env`, `.secrets`, state, plans, or personal records.

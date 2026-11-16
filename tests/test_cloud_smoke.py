@@ -4,11 +4,11 @@ import pytest
 from scripts.smoke_aws import check_endpoint
 
 
-def transport(allow_manager=False):
+def transport(allow_manager=False, storage="dynamodb"):
     def respond(request):
         path = request.url.path
         assert request.method == "GET" or (request.method == "POST" and path == "/api/analyze")
-        if path == "/health": return httpx.Response(200, json={"storage_mode": "dynamodb"})
+        if path == "/health": return httpx.Response(200, json={"storage_mode": storage})
         if path == "/api/apartments/config": return httpx.Response(200, json={"intake_available": True, "units": ["1"], "categories": [{"id": x} for x in ("water", "maintenance", "electrical", "billing", "renewal", "other")]})
         if path == "/api/apartments/manage/concerns": return httpx.Response(200 if allow_manager else 401)
         if path.startswith("/api/apartments/concerns/"): return httpx.Response(404)
@@ -26,3 +26,10 @@ def test_public_smoke_is_read_only_and_includes_apartments():
 def test_smoke_rejects_accidentally_public_manager_queue():
     with httpx.Client(base_url="https://example.test", transport=transport(True)) as client:
         with pytest.raises(AssertionError): check_endpoint(client)
+
+
+def test_cloud_smoke_checks_the_selected_durable_backend():
+    with httpx.Client(base_url="https://example.test", transport=transport(storage="firestore")) as client:
+        assert check_endpoint(client, expected_storage="firestore")["health"] == "ok"
+        with pytest.raises(AssertionError, match="storage backend"):
+            check_endpoint(client, expected_storage="dynamodb")

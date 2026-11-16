@@ -48,6 +48,22 @@ def units():
     return [value.strip() for value in os.getenv("APARTMENT_UNITS", "1,2,3,4,5,6,7,8").split(",") if value.strip()][:50]
 
 
+def manager_refresh_seconds():
+    try:
+        value = int(os.getenv("APARTMENT_REFRESH_SECONDS", "30"))
+    except ValueError:
+        value = 30
+    return max(30, min(value, 3600)) if value > 0 else 0
+
+
+def queue_limit():
+    try:
+        value = int(os.getenv("APARTMENT_QUEUE_LIMIT", "200"))
+    except ValueError:
+        value = 200
+    return max(1, min(value, 200))
+
+
 def ready():
     if not os.getenv("ADMIN_TOKEN") or storage.mode() == "none":
         raise HTTPException(503, "Apartment intake is unavailable until management configures storage and access.")
@@ -161,7 +177,7 @@ def config():
     notice = store.get("apartment_notice") if storage.mode() != "none" else None
     return {"building_name": os.getenv("APARTMENT_NAME", "Our Apartment"), "units": units(), "categories": CATEGORIES,
             "guidance": GUIDANCE, "notice": {key: notice[key] for key in ("title", "message", "updated_at")} if notice and notice["active"] else None,
-            "intake_available": bool(os.getenv("ADMIN_TOKEN")) and storage.mode() != "none"}
+            "intake_available": bool(os.getenv("ADMIN_TOKEN")) and storage.mode() != "none", "manager_refresh_seconds": manager_refresh_seconds(), "queue_limit": queue_limit()}
 
 
 @router.post("/concerns", status_code=201)
@@ -208,14 +224,14 @@ def reply(ticket_id: str, item: Reply, request: Request, x_ticket_key: str | Non
 @router.get("/manage/concerns")
 def queue(x_admin_token: str | None = Header(default=None)):
     manager(x_admin_token)
-    records = store.recent()
+    records = store.recent(queue_limit())
     active = [r for r in records if r["status"] != "resolved"]
     groups = []
     for category in ("water", "electrical", "maintenance"):
         affected = {r["unit"] for r in active if r["category"] == category}
         if len(affected) > 1:
             groups.append({"category": category, "unit_count": len(affected), "note": "Possible shared issue; management must confirm the cause."})
-    return {"items": [owner_record(r) for r in records], "scope": "Showing up to 200 recent concerns; older concerns may not appear. Counts describe only the records shown.",
+    return {"items": [owner_record(r) for r in records], "scope": f"Showing up to {queue_limit()} recent concerns; older concerns may not appear. Counts describe only the records shown.",
             "counts": dict(Counter(r["status"] for r in records)), "possible_shared_issues": groups}
 
 

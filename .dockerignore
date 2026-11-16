@@ -16,3 +16,8 @@ scripts
 dist
 artifacts/model.pt
 data/synthetic_tickets.csv
+
+# Local Google authentication and generated variables
+*.tfvars.json
+gha-creds-*.json
+application_default_credentials.json

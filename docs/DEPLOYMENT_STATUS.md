@@ -1,3 +1,33 @@
+# GCP deployed and verified - November 16, 2026
+
+TicketPilot Apartments is live on Google Cloud Run in Singapore (`asia-southeast1`), provisioned through the separate GCP Terraform roots. The deployed apartment workflow and independent Firestore persistence checks passed with fictional records.
+
+- **Tenant portal:** [https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant)
+- **Manager dashboard:** [https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager). Use the private manager access code from local `.env`; never publish it or give it to tenants.
+- **Image digest:** `sha256:a63417546288d205f2ec99479dcfb13997dc5e8057fca7bb52574d9e94da35c4`.
+
+The runtime uses request-based billing, minimum 0/maximum 1 instances, one vCPU, 512 MiB, concurrency 4 and a 30-second timeout. Manager refresh is manual and the queue is limited to 20 records. `LLM_PROVIDER=none` disables paid model-provider calls; the packaged CPU classifier and local retrieval remain available. No hosted monitoring or vector database was provisioned.
+
+Terraform bootstrap and application deployment completed: required APIs, the regional image repository and retention rules, two Secret Manager resources/versions, dedicated runtime identity and access bindings, public Cloud Run HTTPS service, and a protected Standard Native `(default)` Firestore database. Preflight confirmed there were no existing Firestore databases before creation. Secret values were uploaded outside Terraform and do not enter its state. The active image is kept by the `deployed` tag while the runtime uses its immutable digest. Provider locks cover Google 7.46.2 on Linux/Windows.
+
+The project-wide USD 10/month budget was created after correcting the provider quota-project configuration. It alerts at 50%, 90% and 100% of gross cost before credits, using default billing-account recipients. **This is an alert budget, not a spending cap.** Trial credits and service allowances remain account-dependent; no billing-plan upgrade was performed.
+
+Validation evidence:
+
+- **101 local tests passed.** Terraform formatting, configuration validation and provider-lock checks passed for the GCP roots.
+- **Real local Firestore emulator passed:** the GCP application ran under a 512 MiB/one-CPU limit and read-only root filesystem. The observed memory snapshot was 120.1 MiB; this is one test observation, not a peak-memory guarantee. Both synthetic concerns survived an application-container restart.
+- **Docker Desktop networking was corrected:** the emulator stays on an internal network with no published port; a separate app bridge supports localhost access. The validator removed only its own labeled containers/networks and mounted no cloud credentials.
+- **Live HTTPS acceptance passed:** pages/health, CPU classification/retrieval, two synthetic tenant submissions, private tracking and cross-key denial, manager private-note isolation, tenant-visible replies/reopening, and concurrent updates yielding one success plus one conflict.
+- **Independent persistence passed:** the local Google SDK/ADC read only the exact synthetic Firestore document IDs. Both created documents were deleted with guarded cleanup (2 created, 2 deleted, 0 skipped). Existing private records and building notices were not listed or modified.
+
+The authoritative local reports are `.tools/gcp-deployment.json`, `.tools/gcp-deployment-validation.json` and `.tools/gcp-local-validation.json`; these ignored files are not public artifacts. Google Cloud access uses browser-authenticated CLI configuration `ticketpilot-gcp` plus ADC. No GCP MCP connection or long-lived service-account key is configured.
+
+Prometheus and Grafana remain in the local Docker stack. AWS deployment remains separately paused while phone/account activation is unresolved; its Terraform, optional Bedrock RAG and local data are preserved. GCP deployment does not migrate SQLite/DynamoDB records or replicate data between providers.
+
+The new credential-free GCP/Firestore and Terraform CI checks are prepared, but **a hosted GitHub run of those additions has not yet been observed** at this checkpoint. Remaining rollout work is to publish/watch CI, review actual building guidance and contacts, decide retention and tenant onboarding, and keep monitoring cost/credit expiry. The public link does not verify tenant identity. Keep report-specific tracking links private and use fictional records for portfolio demonstrations. See [the GCP deployment guide](GCP_DEPLOYMENT.md) for operation and protected cleanup.
+
+---
+
 # GitHub repository and CI/CD
 
 The standalone project is now public at https://github.com/rishchaw/ticketpilot-apartments under the verified GitHub CLI account `rishchaw`. The original parent projects were not uploaded. Reviewed source excludes local credentials, databases, tools and Terraform state/plans.

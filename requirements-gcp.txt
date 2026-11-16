@@ -1,0 +1,3 @@
+-r requirements-cloud.txt
+# Optional Google backend; AWS Lambda dependencies remain unchanged.
+google-cloud-firestore>=2.21,<3

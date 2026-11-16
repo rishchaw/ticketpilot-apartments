@@ -55,7 +55,7 @@ def _verify(token: str | None) -> None:
     if not token or not secrets.compare_digest(secret, token):
         raise HTTPException(status_code=401, detail="Invalid or missing owner token")
     if mode() == "none":
-        raise HTTPException(status_code=503, detail="Persistence is disabled; choose SQLite or DynamoDB")
+        raise HTTPException(status_code=503, detail="Persistence is disabled; configure a supported storage backend")
 
 def _priority(text: str) -> str:
     lower = text.casefold()

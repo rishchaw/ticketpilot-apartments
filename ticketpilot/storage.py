@@ -1,4 +1,4 @@
-"""SQLite locally, DynamoDB in AWS; bounded queue queries avoid table scans."""
+"""SQLite locally, DynamoDB in AWS or Firestore in GCP; bounded recent queries."""
 from __future__ import annotations
 import json
 import os
@@ -16,8 +16,8 @@ COLUMNS = ("id", "title", "text", "predicted_category", "assigned_team", "confid
 
 def mode() -> str:
     value = os.getenv("STORAGE_MODE", "sqlite").strip().lower()
-    if value not in {"sqlite", "dynamodb", "none"}:
-        raise ValueError("STORAGE_MODE must be sqlite, dynamodb or none")
+    if value not in {"sqlite", "dynamodb", "firestore", "none"}:
+        raise ValueError("STORAGE_MODE must be sqlite, dynamodb, firestore or none")
     return value
 
 @contextmanager
@@ -66,6 +66,10 @@ def upsert(item: dict) -> dict:
     if mode() == "none":
         return item
     item = _decode(item)
+    if mode() == "firestore":
+        from ticketpilot import firestore_store
+        firestore_store.legacy_upsert(item)
+        return item
     if mode() == "dynamodb":
         record = json.loads(json.dumps({**item, "queue": "tickets"}), parse_float=Decimal)
         _dynamodb().put_item(Item=record)
@@ -83,6 +87,9 @@ def recent(limit: int = 50) -> list[dict]:
     limit = min(max(int(limit), 1), 200)
     if mode() == "none":
         return []
+    if mode() == "firestore":
+        from ticketpilot import firestore_store
+        return [_decode(record) for record in firestore_store.legacy_recent(limit)]
     if mode() == "dynamodb":
         from boto3.dynamodb.conditions import Key
         response = _dynamodb().query(
@@ -97,6 +104,10 @@ def recent(limit: int = 50) -> list[dict]:
 def get(ticket_id: str) -> dict | None:
     if mode() == "none":
         return None
+    if mode() == "firestore":
+        from ticketpilot import firestore_store
+        record = firestore_store.legacy_get(ticket_id)
+        return _decode(record) if record else None
     if mode() == "dynamodb":
         item = _dynamodb().get_item(Key={"id": ticket_id}, ConsistentRead=True).get("Item")
         return _decode(_native(item)) if item else None
@@ -107,6 +118,9 @@ def get(ticket_id: str) -> dict | None:
 def delete(ticket_id: str) -> bool:
     if mode() == "none":
         return False
+    if mode() == "firestore":
+        from ticketpilot import firestore_store
+        return firestore_store.legacy_delete(ticket_id)
     if mode() == "dynamodb":
         return bool(_dynamodb().delete_item(Key={"id": ticket_id}, ReturnValues="ALL_OLD").get("Attributes"))
     with _sql() as c:

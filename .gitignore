@@ -23,3 +23,8 @@ dist/
 # Generated only when configuring remote CI state
 infra/aws/backend.ci.tf
 *.tfbackend
+
+# Local Google authentication and generated variables
+*.tfvars.json
+gha-creds-*.json
+application_default_credentials.json

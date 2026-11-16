@@ -1,8 +1,16 @@
+# GCP proof of concept deployed - November 16, 2026
+
+The user authorized a separate GCP deployment path in Singapore (`asia-southeast1`) with Terraform and a USD 10/month target using the existing free trial. Use named Google Cloud CLI configuration `ticketpilot-gcp` plus ADC; no GCP MCP connection is configured. Use browser sign-in and attached runtime identities, never generate long-lived service-account keys. Keep actual project/billing IDs and account emails out of tracked defaults/examples. Do not upgrade the billing plan automatically.
+
+Read `docs/DEPLOYMENT_STATUS.md` and `docs/GCP_DEPLOYMENT.md` before GCP changes. Cloud Run deployment and synthetic tenant/manager acceptance are verified, with independent Firestore SDK persistence checks. Use the recorded live revision/digest and current reports when assessing deployed behavior; a source change alone is not a new deployment. The new hosted GCP CI execution is still unobserved at this checkpoint. Keep AWS roots and local data intact. AWS activation restrictions below apply to AWS provisioning, not the separately authorized GCP work.
+
+Use separate `infra/gcp/bootstrap` and `infra/gcp/app` states. Cloud Run uses request-based billing, minimum 0/maximum 1, Firestore for durable records, manual manager refresh and a small queue. Inspect existing Firestore database metadata before creation; do not replace an existing database. Keep secrets out of Terraform values/state, use digest images, preserve the active image from cleanup, and leave hosted AI disabled. The installed USD 10 gross-cost alert budget is not a spending cap. Prometheus/Grafana remain local. Use only fictional concerns for automated checks, verify exact synthetic IDs before cleanup, and preserve existing tenant records/notices.
+
 # AWS MCP reconnection authorized - November 11, 2026
 
 The user explicitly requested restoration of the AWS MCP connection. Client configuration is restored using AWS profile `ticketpilot`; AWS operations should target Singapore (`ap-southeast-1`). The user approved a fresh browser login, which completed successfully. STS verified the expected account identity using profile `ticketpilot`. AWS MCP configuration is restored, but tools are not yet exposed in this chat; reload the client before checking live MCP access.
 
-Cloud deployment remains paused because account activation/phone verification is unresolved. Do not provision resources, upgrade the AWS plan, or enable Bedrock until activation is confirmed and the deployment prerequisites are checked. Local Docker, Prometheus, Grafana, and retrieval-only development may continue.
+AWS deployment remains paused because account activation/phone verification is unresolved. Do not provision AWS resources, upgrade the AWS plan, or enable Bedrock until activation is confirmed and the deployment prerequisites are checked. Local Docker, Prometheus, Grafana, and retrieval-only development may continue.
 
 # Project purpose
 

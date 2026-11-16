@@ -155,3 +155,23 @@ def test_mobile_pages_and_original_demo_are_available(client):
     assert client.get("/assets/apartments.js").status_code == 200
     assert client.get("/assets/apartments.css").status_code == 200
     assert "AI Playground" in client.get("/demo").text
+
+
+def test_cloud_demo_manual_refresh_and_bounded_queue(client, monkeypatch):
+    monkeypatch.setenv("APARTMENT_REFRESH_SECONDS", "0")
+    monkeypatch.setenv("APARTMENT_QUEUE_LIMIT", "2")
+    first = create(client, title="Older concern")
+    create(client, title="Recent concern")
+    last = create(client, title="Newest concern")
+    config = client.get("/api/apartments/config").json()
+    assert config["manager_refresh_seconds"] == 0
+    assert config["queue_limit"] == 2
+    rows = client.get("/api/apartments/manage/concerns", headers=OWNER).json()["items"]
+    assert len(rows) == 2
+    assert last["ticket"]["id"] in {row["id"] for row in rows}
+    assert first["ticket"]["id"] not in {row["id"] for row in rows}
+    monkeypatch.delenv("APARTMENT_REFRESH_SECONDS")
+    monkeypatch.delenv("APARTMENT_QUEUE_LIMIT")
+    defaults = client.get("/api/apartments/config").json()
+    assert defaults["manager_refresh_seconds"] == 30
+    assert defaults["queue_limit"] == 200
