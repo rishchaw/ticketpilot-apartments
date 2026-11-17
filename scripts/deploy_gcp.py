@@ -99,11 +99,12 @@ def tfvars(folder, values):
     # Plain .tfvars is ignored; no credentials or secret values belong here.
     folder.mkdir(parents=True, exist_ok=True)
     content = "# Local deployment settings; do not publish.\n"
-    content += "".join(f"{key} = {json.dumps(value)}\n" for key, value in values.items())
+    width = max(map(len, values))
+    content += "".join(f"{key:<{width}} = {json.dumps(value)}\n" for key, value in values.items())
     (folder / "ticketpilot.generated.tfvars").write_text(content, encoding="utf-8")
 
 
-def plan_apply(stage, values):
+def plan_apply(stage, values, *, scaling_only=False):
     folder = ROOT / "infra" / "gcp" / stage
     tfvars(folder, values)
     tool = terraform()
@@ -127,8 +128,21 @@ def plan_apply(stage, values):
         if item["type"] not in allowed or "delete" in actions or actions not in (["create"], ["update"]):
             raise RuntimeError(f"Unexpected/destructive plan at {item['address']}: {actions}")
         after = item["change"].get("after") or {}
+        if scaling_only:
+            if item["type"] != "google_cloud_run_v2_service" or actions != ["update"]:
+                raise RuntimeError("Pause/resume may only update the existing Cloud Run service.")
+            before = item["change"].get("before") or {}
+            for field in ("template", "traffic", "ingress", "deletion_protection", "labels"):
+                if before.get(field) != after.get(field):
+                    raise RuntimeError("Pause/resume cannot change service " + field + ".")
         if item["type"] == "google_cloud_run_v2_service":
             template = after["template"][0]
+            scaling = after["scaling"][0]
+            expected_mode = "MANUAL" if values.get("paused", False) else "AUTOMATIC"
+            if scaling.get("scaling_mode") != expected_mode:
+                raise RuntimeError("Cloud Run scaling mode differs from the requested pause state.")
+            if values.get("paused", False) and scaling.get("manual_instance_count") != 0:
+                raise RuntimeError("A paused service must use exactly zero manual instances.")
             limits = template["containers"][0]["resources"][0]
             if after["scaling"][0]["max_instance_count"] != 1 or template["scaling"][0]["min_instance_count"] != 0:
                 raise RuntimeError("Cloud Run scaling differs from the low-cost configuration.")
@@ -219,13 +233,78 @@ def build_push(args, repository):
     return image + "@" + digest
 
 
+def app_settings(args, *, required=False):
+    path = ROOT / "infra/gcp/app/ticketpilot.generated.tfvars"
+    if not path.exists():
+        if required or (ROOT / "infra/gcp/app/terraform.tfstate").exists():
+            raise RuntimeError("Restore the existing private Terraform settings/state before updating this deployment.")
+        return {}
+    values = {}
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        if line.strip() and not line.lstrip().startswith("#"):
+            key, separator, value = line.partition("=")
+            if not separator:
+                raise RuntimeError("Unexpected generated variable format.")
+            values[key.strip()] = json.loads(value.strip())
+    if values.get("project_id") != args.project or values.get("region") != args.region:
+        raise RuntimeError("Local Terraform settings belong to a different project/region.")
+    if required and not (ROOT / "infra/gcp/app/terraform.tfstate").is_file():
+        raise RuntimeError("Restore the existing private Terraform state before pause/resume.")
+    return values
+
+
+def verify_service_state(args, paused, url):
+    import httpx
+    service = cloud(args, "run", "services", "describe", "ticketpilot-apartments",
+                    "--region=" + args.region)
+    annotations = service["metadata"].get("annotations", {})
+    mode = annotations.get("run.googleapis.com/scalingMode", "automatic")
+    if mode != ("manual" if paused else "automatic"):
+        raise RuntimeError("Live scaling mode did not match the requested state.")
+    if paused and annotations.get("run.googleapis.com/manualInstanceCount") != "0":
+        raise RuntimeError("Live manual instance count is not zero.")
+    traffic = service.get("status", {}).get("traffic", [])
+    if paused and any(item.get("tag") for item in traffic):
+        raise RuntimeError("Tagged revision URLs require review before claiming the whole service is paused.")
+    urls = set(json.loads(annotations.get("run.googleapis.com/urls", "[]"))) | {url}
+    observations = []
+    with httpx.Client(timeout=20, trust_env=False, follow_redirects=False) as client:
+        for address in sorted(urls):
+            response = client.get(address.rstrip("/") + "/health")
+            if paused and response.status_code not in (404, 503):
+                raise RuntimeError("A service URL still responds while paused.")
+            if not paused and (response.status_code != 200 or response.json().get("storage_mode") != "firestore"):
+                raise RuntimeError("Resumed service did not pass durable-storage health.")
+            observations.append({"url": address, "health_http_status": response.status_code})
+    report = {"paused": paused, "scaling_mode": mode,
+              "manual_instances": 0 if paused else None,
+              "url": url, "verified_urls": observations,
+              "data_retained": True, "ai_enabled": False}
+    (TOOLS / "gcp-service-state.json").write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))
+    return report
+
+
+def change_pause_state(args, paused):
+    values = app_settings(args, required=True)
+    values["paused"] = paused
+    outputs = plan_apply("app", values, scaling_only=True)
+    url = outputs["service_url"]["value"]
+    verify_service_state(args, paused, url)
+    record = TOOLS / "gcp-deployment.json"
+    if record.exists():
+        report = json.loads(record.read_text())
+        report.update(outputs["runtime_configuration"]["value"])
+        record.write_text(json.dumps(report, indent=2))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", default="asia-southeast1")
     parser.add_argument("--budget-usd", type=int, default=10, choices=range(1, 101), metavar="USD")
     parser.add_argument("--billing-account", default="")
-    parser.add_argument("--stage", choices=["preflight", "bootstrap", "deploy", "all"], default="preflight")
+    parser.add_argument("--stage", choices=["preflight", "bootstrap", "deploy", "all", "pause", "resume"], default="preflight")
     parser.add_argument("--local-image", default="ticketpilot-gcp:local",
                         help="Already-built and emulator-tested Dockerfile.gcp image")
     args = parser.parse_args(argv)
@@ -234,6 +313,10 @@ def main(argv=None):
     if args.region != "asia-southeast1":
         parser.error("This demonstration is configured and cost-reviewed for Singapore.")
     TOOLS.mkdir(exist_ok=True)
+    if args.stage in ("pause", "resume"):
+        change_pause_state(args, args.stage == "pause")
+        return 0
+    existing = app_settings(args) if args.stage in ("deploy", "all") else {}
     billing_id = preflight(args)
     if args.stage == "preflight":
         return 0
@@ -249,10 +332,14 @@ def main(argv=None):
     repository = f"{args.region}-docker.pkg.dev/{args.project}/ticketpilot-apartments"
     image = build_push(args, repository)
     outputs = plan_apply("app", {"project_id": args.project, "region": args.region,
-                                "image_uri": image, "manage_database": manage})
+                                "image_uri": image, "manage_database": manage,
+                                "paused": existing.get("paused", False)})
     url = outputs["service_url"]["value"]
-    run([sys.executable, "scripts/smoke_cloud.py", url, "--expected-storage=firestore"])
-    run([sys.executable, "scripts/validate_gcp_deployment.py", "--url", url, "--project", args.project])
+    if outputs["runtime_configuration"]["value"]["paused"]:
+        verify_service_state(args, True, url)
+    else:
+        run([sys.executable, "scripts/smoke_cloud.py", url, "--expected-storage=firestore"])
+        run([sys.executable, "scripts/validate_gcp_deployment.py", "--url", url, "--project", args.project])
     cloud(args, "artifacts", "docker", "tags", "add", image, repository + "/app:deployed",
           json_result=False)
     report = {"project": args.project, "region": args.region, "url": url, "image": image,

@@ -85,3 +85,9 @@ variable "queue_limit" {
     error_message = "Use a whole queue limit from 1 through 200."
   }
 }
+
+variable "paused" {
+  type        = bool
+  default     = false
+  description = "Temporarily disable request serving using manual scaling at zero; retain data, secrets and image."
+}

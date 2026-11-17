@@ -12,7 +12,7 @@ ROOT_FILES = (
     ".gitignore", ".dockerignore", ".env.example", ".gitattributes", "AGENTS.md", "CLAUDE.md",
 )
 ASSET_FILES = ("artifacts/model_numpy.npz", "artifacts/vectorizer.joblib", "data/knowledge_base.json")
-SOURCE_DIRECTORIES = ("ticketpilot", "scripts", "tests", "monitoring", "docs", "infra", ".github", ".cursor/rules")
+SOURCE_DIRECTORIES = ("ticketpilot", "scripts", "tests", "monitoring", "docs", "infra", "deploy", ".github", ".cursor/rules")
 BLOCKED_DIRECTORIES = {".terraform", "__pycache__", ".pytest_cache", ".tools", ".venv", ".secrets", ".aws", ".gcloud", ".git", "dist"}
 BLOCKED_PATTERNS = (
     "*.pyc", "*.tfvars", "*.tfvars.json", "*.tfplan", "*.tfbackend", "*.tfstate*",

@@ -2,6 +2,14 @@
 
 A formal concern tracker for an eight-unit family-managed apartment building, replacing reports that get buried in a Messenger group chat. Tenants use a mobile web form in English or Filipino/Taglish and save a private tracking link. Building managers review one queue, assign action, post updates, and resolve concerns.
 
+## Current operating state
+
+Stop the project with one command from this folder: `.\.venv\Scripts\python.exe scripts/stop_services.py`. It stops local Compose, removes only the owned disposable Kubernetes demo, and pauses the existing recorded GCP service. Real app/cloud data is retained. Use `--local-only` to avoid a cloud connection.
+
+The GCP site is temporarily paused at the user's request, using Terraform-managed manual scaling at zero instances. The public links will return HTTP 503 until resumed. The local Compose application, Prometheus and Grafana are stopped; their volumes and cloud records are preserved.
+
+Use the existing private Terraform state/settings when running the pause/resume stages in [the GCP guide](docs/GCP_DEPLOYMENT.md). Retained database/image/secret storage can still incur costs. The optional [local Kubernetes portfolio demo](docs/KUBERNETES.md) runs the application, Prometheus and Grafana in kind, with isolated fictional data and no cloud cluster.
+
 ## CI/CD
 
 [![CI](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml/badge.svg)](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml)
@@ -12,7 +20,9 @@ Publish this standalone folder as the repository root. Local .env/secrets, tenan
 
 ## Deploy to GCP or AWS
 
-TicketPilot is live on [Google Cloud Run in Singapore](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant), deployed through Terraform with Firestore persistence and Secret Manager. It scales to zero, allows at most one configured instance, uses manual manager refresh and makes no paid AI calls. A USD 10/month gross-cost alert budget is installed; it is not a spending cap. Live tenant/manager privacy and SDK persistence checks passed with fictional records. Follow the [GCP guide](docs/GCP_DEPLOYMENT.md) and [current deployment status](docs/DEPLOYMENT_STATUS.md).
+Separate plain-text deployment guides: [AWS README.txt](docs/aws/README.txt) (pending account activation) and [GCP README.txt](docs/gcp/README.txt) (verified Cloud Run deployment).
+
+TicketPilot was deployed and verified on [Google Cloud Run in Singapore](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant), deployed through Terraform with Firestore persistence and Secret Manager. It scales to zero, allows at most one configured instance, uses manual manager refresh and makes no paid AI calls. The service is currently paused. A USD 10/month gross-cost alert budget is installed; it is not a spending cap. Live tenant/manager privacy and SDK persistence checks passed with fictional records. Follow the [GCP guide](docs/GCP_DEPLOYMENT.md) and [current deployment status](docs/DEPLOYMENT_STATUS.md).
 
 AWS Lambda/DynamoDB deployment remains available in its separate Terraform roots and is paused while account activation is unresolved. Both paths use the same FastAPI application and apartment workflow. Local Compose uses SQLite; switching providers does not migrate tenant records. Prometheus/Grafana stay local, and the GCP profile makes no paid AI calls.
 
@@ -113,7 +123,7 @@ docker compose --profile local stop app
 docker compose -f compose.yaml -f compose.aws.yaml up --build -d
 ```
 
-The exporter requires `cloudwatch:GetMetricData` permission. It polls four Lambda metrics every five minutes and exposes them only inside the Compose network. Prometheus stores seven days of data with a 512 MB limit. AWS panels show invocations, errors, throttles, and mean duration for a completed five-minute window. Data is delayed by roughly 5–10 minutes plus CloudWatch ingestion. `GetMetricData` can incur charges; stop the monitoring stack when unused.
+The exporter requires `cloudwatch:GetMetricData` permission. It polls four Lambda metrics every five minutes and exposes them only inside the Compose network. Prometheus stores seven days of data with a 512 MB limit. AWS panels show invocations, errors, throttles, and mean duration for a completed five-minute window. Data is delayed by roughly 5Ã¢â‚¬â€œ10 minutes plus CloudWatch ingestion. `GetMetricData` can incur charges; stop the monitoring stack when unused.
 
 New `aws login` profiles may require the credential-process bridge described in [AWS_CONNECTION.md](docs/AWS_CONNECTION.md). Container monitoring supports profiles Boto3 can read inside Linux, such as temporary shared credentials and IAM Identity Center profiles. It cannot execute a Windows `aws.exe` credential process inside a Linux container. The guide includes a host-exporter option for that case.
 

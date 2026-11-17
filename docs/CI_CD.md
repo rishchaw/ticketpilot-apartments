@@ -2,13 +2,13 @@
 
 The public repository is `rishchaw/ticketpilot-apartments`. Publish the **contents of ticketpilot-aws as the repository root**, including its `.github` directory. The parent ticketpilot-ai folder contains separate projects; publishing the whole parent would put this project's workflows in a nested folder that GitHub does not run.
 
-GitHub stores the source, runs the checks and publishes container images. It does not host the FastAPI application through GitHub Pages. The public tenant HTTPS address requires application hosting: AWS activation still blocks the AWS path, while a separate GCP Cloud Run/Firestore path is prepared for a low-usage deployment. See [GCP deployment](GCP_DEPLOYMENT.md) and [observed status](DEPLOYMENT_STATUS.md).
+GitHub stores the source, runs the checks and publishes container images. It does not host the FastAPI application through GitHub Pages. The public tenant HTTPS address requires application hosting: AWS activation still blocks the AWS path, while the separately deployed GCP Cloud Run/Firestore service is currently paused to save costs. See [GCP deployment](GCP_DEPLOYMENT.md) and [observed status](DEPLOYMENT_STATUS.md).
 
 ## Three workflows
 
 | Workflow | Trigger | Result |
 | --- | --- | --- |
-| TicketPilot CI (`ci.yml`) | Push to main, pull request, manual run, reusable workflow call | Tests and JUnit, English/Filipino browser workflow, synthetic legacy evaluation, Docker/Prometheus/Grafana checks, Lambda runtime emulator, GCP container/Firestore emulator, AWS/GCP Terraform format/validation |
+| TicketPilot CI (`ci.yml`) | Push to main, pull request, manual run, reusable workflow call | Tests and JUnit, English/Filipino browser workflow, synthetic legacy evaluation, Docker/Prometheus/Grafana checks, Lambda runtime emulator, GCP container/Firestore emulator, local kind Kubernetes/monitoring acceptance, AWS/GCP Terraform format/validation |
 | TicketPilot container release (`release.yml`) | Manual run from the default branch | Reuses CI, builds and tests the exact app/Lambda images, pushes to GHCR and records digest/commit/run provenance plus a source archive |
 | TicketPilot AWS promotion (`deploy-aws.yml`) | Manual run with a successful release run ID | Disabled until explicitly configured; verifies provenance, uses OIDC and remote Terraform state, promotes only an existing Lambda image and runs public apartment checks |
 
@@ -19,7 +19,7 @@ The normal CI path makes no AWS calls and no paid model calls. The apartment bro
 ## First GitHub run
 
 1. Authenticate with the intended GitHub account through the plugin or the official GitHub CLI browser flow. No passwords or access tokens need to be pasted into chat. Publishing workflows needs repository and workflow-write permission.
-2. Create the standalone public repository and push its main branch. CI starts automatically. Confirm all four jobs pass in Actions before claiming GitHub validation succeeded.
+2. Create the standalone public repository and push its main branch. CI starts automatically. Confirm all five jobs pass in Actions before claiming GitHub validation succeeded.
 3. Run **TicketPilot container release** from main when you want a tested deliverable. Releases are manual to avoid rebuilding/publishing containers on every small change.
 4. Read the release summary and download `release-manifest` if needed. The manifest binds immutable image digests to the repository, commit and workflow run. Commit-addressed tags also include run/attempt IDs; deployments use digests because tags can move.
 
@@ -74,7 +74,7 @@ To roll back an image, select an earlier successful release with a retained mani
 
 GCP uses its own Terraform bootstrap/application roots and `Dockerfile.gcp` with the optional Firestore dependency. The Cloud Run image must be built from that Dockerfile; the existing GHCR app/Lambda release is not automatically a Firestore-enabled release. Local GCP deployment uses the browser-authenticated `ticketpilot-gcp` CLI configuration and ADC through `scripts/deploy_gcp.py`. No GCP MCP connection, GitHub service-account key, GCP remote-state bucket or GitHub-to-GCP deployment identity has been installed by this setup.
 
-The GCP Terraform roots have been validated locally with Google provider locks for Linux and Windows. CI now includes a fourth credential-free job that builds `Dockerfile.gcp`, runs the isolated Firestore emulator validator and retains allowlisted GCP metadata/validation reports for three days. Its Terraform job validates all four AWS/GCP roots with readonly provider locks and no cloud backend. Hosted execution of the GCP additions has not yet been observed; CI configuration, local validation and actual deployment remain separate evidence. The current AWS promotion workflow does not deploy to GCP. A future manual GCP promotion can use GitHub OIDC through Workload Identity Federation after remote-state and deployment permissions are deliberately configured; do not upload a long-lived service-account JSON key to GitHub. See [Google's deployment pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
+The GCP Terraform roots have been validated locally with Google provider locks for Linux and Windows. CI now includes a fourth credential-free job that builds `Dockerfile.gcp`, runs the isolated Firestore emulator validator and retains allowlisted GCP metadata/validation reports for three days. Its Terraform job validates all four AWS/GCP roots with readonly provider locks and no cloud backend. Hosted GCP checks passed in run 43913020484; CI configuration, local validation and actual deployment remain separate evidence. The current AWS promotion workflow does not deploy to GCP. A future manual GCP promotion can use GitHub OIDC through Workload Identity Federation after remote-state and deployment permissions are deliberately configured; do not upload a long-lived service-account JSON key to GitHub. See [Google's deployment pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
 
 Prometheus/Grafana stay in local Compose, and the GCP profile disables paid AI calls and automatic manager polling. GitHub runner allowances do not cover Cloud Run, Firestore, image storage or other application-hosting usage. The optional USD 10 GCP budget sends alerts only; it does not enforce a project-wide cost ceiling.
 
@@ -95,3 +95,9 @@ Official references:
 - [Terraform S3 backend and state locking](https://developer.hashicorp.com/terraform/language/backend/s3)
 - [GitLab compute minutes](https://docs.gitlab.com/ci/pipelines/compute_minutes/)
 - [CircleCI pricing](https://circleci.com/pricing/)
+
+## Local Kubernetes verification
+
+The additional credential-free Kubernetes CI job installs checksum-verified kind 0.33.0 and kubectl 1.36.1, creates only the isolated ticketpilot-portfolio kind cluster, deploys the application/Prometheus/Grafana manifests, and runs real acceptance through localhost forwards. Cleanup runs even after failures and deletes only its verified owned demonstration cluster. The only Kubernetes artifact is .tools/kubernetes-validation.json, retained for three days. No kubeconfig, Secrets, tenant databases or raw pod logs are uploaded.
+
+This job uses local Docker compute on the GitHub runner. It has no GCP/AWS deployment identity, does not create GKE/EKS infrastructure and does not resume the paused Cloud Run site. See [the local Kubernetes guide](KUBERNETES.md). Check actual Actions results for the new job before claiming hosted Kubernetes success.

@@ -64,8 +64,10 @@ resource "google_cloud_run_v2_service" "app" {
 
   # Service-wide maximum avoids a separate full allowance for each traffic revision.
   scaling {
-    min_instance_count = 0
-    max_instance_count = 1
+    min_instance_count    = 0
+    max_instance_count    = 1
+    scaling_mode          = var.paused ? "MANUAL" : "AUTOMATIC"
+    manual_instance_count = var.paused ? 0 : null
   }
 
   template {
@@ -163,5 +165,6 @@ output "runtime_configuration" {
     manager_refresh_seconds = var.manager_refresh_seconds
     queue_limit             = var.queue_limit
     ai_enabled              = false
+    paused                  = var.paused
   }
 }

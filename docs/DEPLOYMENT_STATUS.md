@@ -1,3 +1,17 @@
+# Temporarily offline; Kubernetes portfolio addition - November 17, 2026
+
+The user requested a temporary cost-saving stop. The GCP Cloud Run service is paused with Terraform-managed paused=true, scaling mode MANUAL and zero manual instances. Both known public service URLs returned HTTP 503. No revision traffic tags were present. The pause applied only the existing Cloud Run service; its image, Firestore database, runtime identity, secrets and budget remain in place.
+
+The local Compose app, Prometheus and Grafana were stopped without deleting their volumes. Docker Desktop is now offline. The one-command scripts/stop_services.py helper ran successfully, recognized the offline Docker engine without restarting it and confirmed the GCP pause. Its ignored report is .tools/stop-services.json; detailed GCP verification is .tools/gcp-service-state.json.
+
+Real app/cloud data is retained. Image/database/secret storage may still incur costs; the USD 10 budget remains an alert rather than a cap. AWS provisioning remains separately blocked by account activation. No billing plan was upgraded, no GKE/EKS cluster was provisioned and paid AI remains disabled.
+
+Pause/resume is explicit through scripts/deploy_gcp.py --stage pause or --stage resume using the existing private settings and Terraform state. Normal deploy/all preserves the saved pause state and skips online acceptance when paused. Ten dedicated pause-control tests and two stop-wrapper tests passed; they reject unrelated resource/image changes, wrong project settings, unsafe tagged-revision offline claims and accidental resume when settings are missing.
+
+Kubernetes source is being added under deploy/kubernetes with a local kind helper, isolated kubeconfig/demo-only credentials, app/Prometheus/Grafana workloads, probes/resources and a disposable app PVC. The interrupted local attempt was not a successful Kubernetes validation. Local Docker remains off; actual Kubernetes acceptance will run in a credential-free GitHub CI runner and clean its owned cluster afterward. Check the later CI result before claiming Kubernetes runtime success.
+
+---
+
 # GCP deployed and verified - November 16, 2026
 
 TicketPilot Apartments is live on Google Cloud Run in Singapore (`asia-southeast1`), provisioned through the separate GCP Terraform roots. The deployed apartment workflow and independent Firestore persistence checks passed with fictional records.

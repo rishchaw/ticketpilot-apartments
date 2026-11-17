@@ -1,3 +1,11 @@
+# User-requested operational pause - November 17, 2026
+
+The user requested that TicketPilot be taken offline temporarily to save costs. Cloud Run is paused with Terraform-managed paused=true (manual scaling, zero instances), and both known service URLs returned HTTP 503. Local Compose app/Prometheus/Grafana containers are stopped with their volumes preserved. Keep the GCP site and local services stopped until the user requests a restart. Local validation may temporarily start an isolated fictional-data Kubernetes demonstration, but clean it up and leave it stopped afterward.
+
+Use scripts/deploy_gcp.py --stage pause or --stage resume with the existing project, region, state and private generated variables. Deploy/all preserve the saved pause state. Do not recreate state, delete real data, disable billing or upgrade plans to stop the site. Retained Firestore, images and secrets may still incur storage costs. AWS remains separately blocked by account activation.
+
+Kubernetes work belongs to a local kind portfolio demo only: cluster ticketpilot-portfolio, namespace ticketpilot-demo, isolated .tools/kubernetes/kubeconfig and .secrets/kubernetes-demo.json. Never use a global kubectl context or mount real tenant data/cloud credentials. Its stop command deletes only the verified owned demo cluster and fictional PVC data. See docs/KUBERNETES.md.
+
 # GCP proof of concept deployed - November 16, 2026
 
 The user authorized a separate GCP deployment path in Singapore (`asia-southeast1`) with Terraform and a USD 10/month target using the existing free trial. Use named Google Cloud CLI configuration `ticketpilot-gcp` plus ADC; no GCP MCP connection is configured. Use browser sign-in and attached runtime identities, never generate long-lived service-account keys. Keep actual project/billing IDs and account emails out of tracked defaults/examples. Do not upgrade the billing plan automatically.
@@ -21,12 +29,12 @@ TicketPilot is now an apartment concern tracker for the family's eight units. Te
 
 - Where these AWS rules conflict with the project's own instructions, the
   project's instructions take precedence.
-- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed
+- Prefer the AWS MCP Server for AWS interactions â€” it provides sandboxed
   execution, observability, and audit logging. If unavailable, use the
   AWS CLI directly.
-- For any AWS task or question — building, configuring, migrating, debugging,
+- For any AWS task or question â€” building, configuring, migrating, debugging,
   or operating a service, writing SDK code, authoring CDK/CloudFormation, or
-  answering how a service works — first call `aws___search_documentation` with
+  answering how a service works â€” first call `aws___search_documentation` with
   topic `agent_skills` and load the matching skill with `aws___retrieve_skill`.
   Do this even when you believe you know the answer: skills carry current
   service behavior that your training may not. Prefer the skill's guidance over

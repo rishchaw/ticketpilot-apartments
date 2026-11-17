@@ -13,3 +13,6 @@ queue_limit             = 20
 # Optional display settings; do not commit real tenant records.
 apartment_name  = "Our Apartment"
 apartment_units = "1,2,3,4,5,6,7,8"
+
+# Temporarily take the service offline without deleting data.
+paused = false

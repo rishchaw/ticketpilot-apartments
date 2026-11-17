@@ -58,10 +58,10 @@ def tracking(client, concern):
     return value
 
 
-def exercise_http(client, manager_token, created, title_prefix):
+def exercise_http(client, manager_token, created, title_prefix, expected_storage="firestore"):
     owner = {"X-Admin-Token": manager_token}
     health = expect(client.get("/health"), 200, "Service health failed").json()
-    require(health.get("storage_mode") == "firestore", "Service is not using Firestore persistence")
+    require(health.get("storage_mode") == expected_storage, "Service is not using the expected durable storage")
     for path in ("/tenant", "/manager"):
         expect(client.get(path), 200, "Apartment page unavailable")
     config = expect(client.get("/api/apartments/config"), 200, "Apartment configuration unavailable").json()

@@ -1,0 +1,10 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ticketpilot-portfolio
+networking:
+  apiServerAddress: 127.0.0.1
+nodes:
+- role: control-plane
+  labels:
+    app.kubernetes.io/part-of: ticketpilot
+    ticketpilot.local/purpose: portfolio-demo

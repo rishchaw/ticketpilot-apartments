@@ -1,12 +1,12 @@
 # Deploy TicketPilot to Google Cloud
 
-The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
+The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
 
 ## Architecture and cost controls
 
 | Component | Configuration | Purpose |
 | --- | --- | --- |
-| Cloud Run | Request-based billing, minimum 0, maximum 1, 1 vCPU, 512 MiB, concurrency 4, 30-second timeout | Public HTTPS apartment portal; scales down when unused |
+| Cloud Run | Enabled: request-based billing, automatic scaling minimum 0/maximum 1; paused: manual count 0. 1 vCPU, 512 MiB, concurrency 4, 30-second timeout | Public HTTPS apartment portal when enabled; reversible offline state when paused |
 | Firestore | Standard edition, Native mode, existing eligible `(default)` database or a deliberately created one | Concerns, replies, manager notes, notices and legacy demo records survive container replacement |
 | Artifact Registry | Regional Docker repository, digest deployments, keep current deployment and newest two images | Stores the independently deployable container; paid automatic vulnerability scanning disabled |
 | Secret Manager | Two secrets; runtime identity can access only those secrets | Manager and metrics access codes; values stay outside Terraform state |
@@ -98,7 +98,7 @@ The repository is `asia-southeast1-docker.pkg.dev/YOUR-PROJECT-ID/ticketpilot-ap
 
 ## Verify the live deployment
 
-A successful Terraform apply is only the infrastructure step. Check the deployed revision and digest, runtime settings, public HTTPS URL, configured Firestore database and secret access. Then run:
+A successful Terraform apply is only the infrastructure step. When the service is intentionally paused, the URL is expected to be unavailable and online acceptance is skipped. Resume explicitly before running online checks. Check the deployed revision and digest, runtime settings, public HTTPS URL, configured Firestore database and secret access. Then run:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/validate_gcp_deployment.py --url https://SERVICE.run.app --project YOUR-PROJECT-ID --env-file .env
@@ -122,9 +122,41 @@ The same FastAPI routes, manager/tenant UI, NumPy artifacts, retrieval data and 
 
 These are independently deployable provider paths, not automatic failover or replicated multi-cloud data. Existing SQLite/DynamoDB records are preserved; no implicit data migration occurs. AWS provisioning remains paused until account activation/service access is confirmed. Optional AWS Bedrock RAG remains in source and disabled in the GCP profile.
 
+## Temporarily pause and resume
+
+For a combined stop from the repository root, run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/stop_services.py
+```
+
+It stops Compose while preserving volumes, removes only an owned disposable kind demo when Docker is available, and pauses the existing GCP service through Terraform. The project comes from the private local deployment record; use `--project YOUR-PROJECT-ID` if needed. `--local-only` skips GCP. If Docker is already off, it stays off and cluster deletion is skipped; cloud pause is still attempted. Check the printed summary for errors or skipped cloud work. Real cloud records/images/secrets and Compose volumes are retained; only kind's fictional demo data is disposable.
+
+Use the Terraform-managed `paused` variable through the helper to take the existing service offline without destroying the deployment. These commands change the service scaling configuration and require the existing private application state and generated variable file:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage pause
+.\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage resume
+```
+
+Pause sets `paused=true`, Cloud Run manual scaling and zero instances. The deploy/all stages preserve the existing generated paused state; deploying a new image while paused skips online acceptance rather than silently bringing the site back online. Requests to the normal service URL become unavailable; existing requests can finish. Resume sets `paused=false` and restores automatic request-based scaling with minimum 0/maximum 1. It is a scaling change rather than a new image release. Consult the helper's help and the latest status for the actual observed operation/result. The Terraform default is enabled (`paused=false`), so preserve the local generated settings instead of applying against defaults or a fresh state.
+
+Firestore, Artifact Registry images, Secret Manager values, the runtime identity, service URL, Terraform state and budget are retained. Storage, secret versions, database activity and other retained services can still consume allowances or credits. The USD 10 budget remains an alert, not a cap. No billing-plan upgrade is needed for pause or resume.
+
+Cloud Console scaling changes can drift from Terraform; reconcile them before the next apply. Cloud Run traffic-tag-only revisions are not disabled by service manual zero, so verify that no separate tag URLs remain active if every public endpoint must be offline. See [Cloud Run manual scaling](https://docs.cloud.google.com/run/docs/configuring/services/manual-scaling).
+
+Local Compose is separate. Stop the application, Prometheus and Grafana while retaining their containers and data volumes, then restart only when wanted:
+
+```powershell
+docker compose --profile local stop
+docker compose --profile local up -d
+```
+
+Stopping local Docker does not pause Cloud Run. The optional [local Kubernetes demonstration](KUBERNETES.md) uses kind on this PC and creates no GKE/EKS resources. Its own stop command deletes only its disposable demo cluster/data; it does not remove real Compose volumes or cloud records.
+
 ## Stop or remove the demonstration
 
-Closing the browser and disabling polling lets Cloud Run scale to zero; it does not delete artifacts, secrets or Firestore records. Review the billing report and remove unused old secret versions/images rather than leaving repeated test deployments indefinitely.
+For a temporary offline period, use pause above rather than destroying the service. Merely closing the browser allows idle scale-down but leaves a public automatically scaled service available to other requests; it does not delete artifacts, secrets or Firestore records. Review the billing report and remove unused old secret versions/images rather than leaving repeated test deployments indefinitely.
 
 To remove compute, first change `protect_service=false` in local application variables, apply that explicit protection change, then review `terraform -chdir=infra/gcp/app destroy`. The Firestore resource uses `ABANDON` and database deletion protection: application destruction leaves database data behind. Preserve the state and review retained data separately.
 
