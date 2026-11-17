@@ -78,7 +78,7 @@ def _write_private(path: Path, value, paths: DemoPaths):
     _safe_path(path, paths)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = json.dumps(value, indent=2) + "\n"
-    temporary = path.with_name(path.name + ".tmp-" + uuid4().hex)
+    temporary = path.with_name(".tmp-" + uuid4().hex[:16])
     _safe_path(temporary, paths)
     try:
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -332,6 +332,28 @@ def safe_creation_diagnostics(result):
     return "\n".join(lines[-100:])
 
 
+def control_plane_diagnostics(commands, state):
+    """Read only owned, pre-workload node diagnostics; never dump manifests/config."""
+    try:
+        nodes = commands.nodes()
+        verify_node_ownership(state, nodes)
+        for node in nodes:
+            name = node["Name"].lstrip("/")
+            journal = commands.run("docker", "exec", name, "journalctl", "--no-pager", "-u", "kubelet", "-n", "60", check=False)
+            print("Owned kind node kubelet diagnostics:", file=sys.stderr)
+            print(safe_creation_diagnostics(journal), file=sys.stderr)
+            for component in ("kube-apiserver", "etcd"):
+                result = commands.run("docker", "exec", name, "crictl", "ps", "-a", "--name", component, "-o", "json", check=False)
+                containers = json.loads(result.stdout or "{}").get("containers", [])
+                if containers:
+                    latest = max(containers, key=lambda item: int(item.get("createdAt", 0)))
+                    logs = commands.run("docker", "exec", name, "crictl", "logs", "--tail=60", latest["id"], check=False)
+                    print("Owned kind " + component + " diagnostics:", file=sys.stderr)
+                    print(safe_creation_diagnostics(logs), file=sys.stderr)
+    except Exception as error:
+        print("Additional control-plane diagnostics unavailable: " + type(error).__name__, file=sys.stderr)
+
+
 def start(paths, commands, args):
     state = prepare(paths, getattr(args, "image", APP_IMAGE))
     if commands.run("docker", "info", "--format", "{{.OSType}}").stdout.strip() != "linux":
@@ -357,6 +379,7 @@ def start(paths, commands, args):
             state["phase"] = "failed"
             _write_private(paths.ownership, state, paths)
             print(safe_creation_diagnostics(created), file=sys.stderr)
+            control_plane_diagnostics(commands, state)
             raise LocalDemoError("Kind creation failed; recorded demo nodes can be removed with stop")
     try:
         verify_node_ownership(state, commands.nodes())
