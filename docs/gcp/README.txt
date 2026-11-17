@@ -204,3 +204,5 @@ repository images and secrets; APIs remain enabled. Do not delete the project,
 disable billing, destroy tenant data or upgrade the plan as automatic cleanup.
 
 Full references: docs/GCP_DEPLOYMENT.md and docs/DEPLOYMENT_STATUS.md.
+
+Windows shortcut: double-click STOP_SERVICES.cmd in the repository root to run the same stop helper. If Google authentication has expired, renew CLI and ADC browser sign-in before future cloud changes. The already paused site stays paused; local Kubernetes does not require Google login.

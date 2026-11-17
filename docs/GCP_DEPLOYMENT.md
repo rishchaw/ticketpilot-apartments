@@ -161,3 +161,5 @@ For a temporary offline period, use pause above rather than destroying the servi
 To remove compute, first change `protect_service=false` in local application variables, apply that explicit protection change, then review `terraform -chdir=infra/gcp/app destroy`. The Firestore resource uses `ABANDON` and database deletion protection: application destruction leaves database data behind. Preserve the state and review retained data separately.
 
 For bootstrap cleanup, explicitly change `protect_resources=false`, apply the protection change, then review bootstrap destruction. This deletes repository images and secret metadata/versions. Required project APIs remain enabled by design. An existing database outside this root is never destroyed by it. Do not delete a shared project, disable billing, destroy a database or upgrade the trial as an automatic cleanup step.
+
+Windows shortcut: double-click STOP_SERVICES.cmd in the repository root to run the same stop helper. If Google authentication has expired, renew CLI and ADC browser sign-in before future cloud changes. The already paused site stays paused; local Kubernetes does not require Google login.

@@ -8,7 +8,7 @@ TicketPilot includes a local kind deployment for demonstrating Kubernetes alongs
 | --- | --- |
 | Namespace `ticketpilot-demo` | Separates this fictional-data demonstration |
 | Deployments and ClusterIP Services | Application, Prometheus and Grafana workloads/service discovery |
-| ConfigMaps and generated Kustomize manifests | Application settings, scrape configuration and Grafana provisioning |
+| ConfigMaps and generated Kustomize manifests | Prometheus scrape configuration and Grafana provisioning |
 | Kubernetes Secrets | Separate private demo manager/metrics/Grafana credentials |
 | PVC `app-state`, 512 MiB | SQLite records survive application-pod replacement within the cluster |
 | Probes, resource limits and non-root application | Controlled startup/readiness and a 512 MiB application limit |
@@ -88,8 +88,10 @@ For the real local Compose stack, `docker compose --profile local stop` retains 
 
 ## Evidence and portfolio scope
 
-Kubernetes runtime acceptance on this PC was interrupted when Docker became unavailable. Use the recorded hosted CI result when available; this guide does not claim a completed PC runtime check.
+All five jobs in [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882) passed for source commit 4401872. Real Kubernetes acceptance verified workloads, privacy, monitoring and PVC persistence after app-pod replacement, then removed its owned cluster successfully. This is GitHub Linux-runner runtime evidence; the interrupted PC attempt is not claimed as a completed PC runtime test.
 
 Record actual rollout, probe/resource checks, tenant/manager privacy, authenticated app scraping, Grafana provisioning and SQLite persistence after replacing the app pod. Preserve only redacted summaries or fictional screenshots. A manifest review does not establish that these checks passed; the latest observed results belong in [deployment status](DEPLOYMENT_STATUS.md).
 
 This path demonstrates local Kubernetes workload configuration, storage and observability. GCP Cloud Run deployment and AWS Terraform remain separate provider implementations. The project does not claim a hosted GKE/EKS deployment, multi-node availability or automated provider failover. GitHub CI and cloud deployment are also separate; see [CI/CD](CI_CD.md) for the actual workflow coverage.
+
+On Windows, double-click STOP_SERVICES.cmd in the repository root to run the stop helper. Docker stays off if already offline. Future cloud actions require renewed Google CLI/ADC browser sign-in; local kind does not use Google credentials.

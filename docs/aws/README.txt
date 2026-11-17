@@ -163,3 +163,5 @@ docs/AWS_DEPLOYMENT.md
 docs/CI_CD.md
 docs/gcp/README.txt
 docs/KUBERNETES.md
+
+Windows shortcut: double-click STOP_SERVICES.cmd in the repository root to run the same stop helper. If Google authentication has expired, renew CLI and ADC browser sign-in before future cloud changes. The already paused site stays paused; local Kubernetes does not require Google login.

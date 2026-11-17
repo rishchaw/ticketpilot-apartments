@@ -4,7 +4,7 @@ The user requested that TicketPilot be taken offline temporarily to save costs. 
 
 Use scripts/deploy_gcp.py --stage pause or --stage resume with the existing project, region, state and private generated variables. Deploy/all preserve the saved pause state. Do not recreate state, delete real data, disable billing or upgrade plans to stop the site. Retained Firestore, images and secrets may still incur storage costs. AWS remains separately blocked by account activation.
 
-Kubernetes work belongs to a local kind portfolio demo only: cluster ticketpilot-portfolio, namespace ticketpilot-demo, isolated .tools/kubernetes/kubeconfig and .secrets/kubernetes-demo.json. Never use a global kubectl context or mount real tenant data/cloud credentials. Its stop command deletes only the verified owned demo cluster and fictional PVC data. See docs/KUBERNETES.md.
+Kubernetes work belongs to a local kind portfolio demo only: cluster ticketpilot-portfolio, namespace ticketpilot-demo, isolated .tools/kubernetes/kubeconfig and .secrets/kubernetes-demo.json. Never use a global kubectl context or mount real tenant data/cloud credentials. Its stop command deletes only the verified owned demo cluster and fictional PVC data. Kubernetes acceptance and cleanup passed in hosted CI run 44023034882 for source commit 4401872. Do not claim the interrupted PC attempt completed. Google CLI/ADC reauthentication is now needed before cloud changes (invalid_rapt); both public URLs still returned HTTP 503. Do not resume services merely to renew login. See docs/KUBERNETES.md.
 
 # GCP proof of concept deployed - November 16, 2026
 

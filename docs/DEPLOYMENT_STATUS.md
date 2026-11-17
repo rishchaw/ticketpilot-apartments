@@ -8,7 +8,15 @@ Real app/cloud data is retained. Image/database/secret storage may still incur c
 
 Pause/resume is explicit through scripts/deploy_gcp.py --stage pause or --stage resume using the existing private settings and Terraform state. Normal deploy/all preserves the saved pause state and skips online acceptance when paused. Ten dedicated pause-control tests and two stop-wrapper tests passed; they reject unrelated resource/image changes, wrong project settings, unsafe tagged-revision offline claims and accidental resume when settings are missing.
 
-Kubernetes source is being added under deploy/kubernetes with a local kind helper, isolated kubeconfig/demo-only credentials, app/Prometheus/Grafana workloads, probes/resources and a disposable app PVC. The interrupted local attempt was not a successful Kubernetes validation. Local Docker remains off; actual Kubernetes acceptance will run in a credential-free GitHub CI runner and clean its owned cluster afterward. Check the later CI result before claiming Kubernetes runtime success.
+The local kind Kubernetes path is implemented. Hosted [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882) passed all five jobs for source commit 44018725c28eabeca635821e0297fe9b8355c2f0. Kubernetes acceptance ran on the GitHub Linux runner while this PC's Docker engine and the GCP site remained offline. The interrupted PC attempt is not claimed as a completed PC runtime test.
+
+Acceptance verified three ready Deployments/ClusterIP Services; non-root/read-only workloads, probes, resource requests/limits and no mounted API tokens; a bound SQLite PVC with one app replica and Recreate strategy; tenant tracking privacy, manager-note isolation, version conflicts and reopening; authenticated Prometheus scraping/counters; both Grafana dashboards and datasource health; and persistence after replacing the app pod. Port-forwards were cleaned up and the owned kind cluster/PVC was deleted successfully. The artifact contains only a passing kubernetes-validation.json; no kubeconfig, credentials, databases or raw logs were uploaded.
+
+Initial creation failed because a reserved application label was passed through kubelet node-label flags. Nodes now use the custom project label domain, with a regression check. Private metadata writes are atomic, Windows temporary filenames are short, and changed local image IDs trigger a new app rollout.
+
+For easy Windows shutdown, double-click STOP_SERVICES.cmd in the repository root. kind and its pinned node image were downloaded; kubectl is bundled with Docker Desktop. No separate Kubernetes server installer or GKE/EKS cluster is required.
+
+Both public health URLs still returned HTTP 503 at final verification. Google CLI and Terraform ADC authentication had expired with a reauthentication requirement (invalid_rapt). The final repeated stop attempt could not refresh the control plane and did not change or resume resources. The earlier successful Terraform pause is the last verified control-plane state. Renew browser sign-in before future cloud changes; remaining offline does not require renewing it now.
 
 ---
 

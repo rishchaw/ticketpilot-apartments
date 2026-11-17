@@ -8,13 +8,15 @@ On Windows, double-click `STOP_SERVICES.cmd` in this folder, or run: `.\.venv\Sc
 
 The GCP site is temporarily paused at the user's request, using Terraform-managed manual scaling at zero instances. The public links will return HTTP 503 until resumed. The local Compose application, Prometheus and Grafana are stopped; their volumes and cloud records are preserved.
 
-Use the existing private Terraform state/settings when running the pause/resume stages in [the GCP guide](docs/GCP_DEPLOYMENT.md). Retained database/image/secret storage can still incur costs. The optional [local Kubernetes portfolio demo](docs/KUBERNETES.md) runs the application, Prometheus and Grafana in kind, with isolated fictional data and no cloud cluster.
+The Google CLI/ADC session has expired and needs browser renewal before future cloud changes. The already paused site does not need sign-in renewal to stay paused.
+
+Use the existing private Terraform state/settings when running the pause/resume stages in [the GCP guide](docs/GCP_DEPLOYMENT.md). Retained database/image/secret storage can still incur costs. The optional [local Kubernetes portfolio demo](docs/KUBERNETES.md) runs the application, Prometheus and Grafana in kind, with isolated fictional data and no cloud cluster. Its runtime acceptance and cleanup passed in [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882).
 
 ## CI/CD
 
 [![CI](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml/badge.svg)](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml)
 
-GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation, an isolated GCP/Firestore emulator workflow and AWS/GCP Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until account activation and bootstrap are complete. See [CI/CD setup and costs](docs/CI_CD.md).
+GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation, an isolated GCP/Firestore emulator workflow, a real kind Kubernetes/monitoring workflow and AWS/GCP Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until account activation and bootstrap are complete. See [CI/CD setup and costs](docs/CI_CD.md).
 
 Publish this standalone folder as the repository root. Local .env/secrets, tenant databases, tools and Terraform state/plans are excluded. GitHub source/CI delivery does not host the Python application through Pages.
 
