@@ -88,3 +88,10 @@ def test_namespace_without_matching_owner_is_rejected():
              "labels": {demo.PART_OF_LABEL: "ticketpilot", demo.PURPOSE_LABEL: "portfolio-demo", demo.OWNER_LABEL: "b" * 32}}}
     with pytest.raises(demo.LocalDemoError, match="ownership"):
         demo.verify_namespace(state, value)
+
+
+def test_kind_bootstrap_uses_only_custom_node_label_domains(paths):
+    demo.prepare(paths)
+    config = yaml.safe_load((paths.rendered / "kind.yaml").read_text())
+    labels = config["nodes"][0]["labels"]
+    assert labels and all(key.startswith("ticketpilot.local/") for key in labels)

@@ -4,7 +4,7 @@ A formal concern tracker for an eight-unit family-managed apartment building, re
 
 ## Current operating state
 
-Stop the project with one command from this folder: `.\.venv\Scripts\python.exe scripts/stop_services.py`. It stops local Compose, removes only the owned disposable Kubernetes demo, and pauses the existing recorded GCP service. Real app/cloud data is retained. Use `--local-only` to avoid a cloud connection.
+On Windows, double-click `STOP_SERVICES.cmd` in this folder, or run: `.\.venv\Scripts\python.exe scripts/stop_services.py`. It stops local Compose, removes only the owned disposable Kubernetes demo, and pauses the existing recorded GCP service. Real app/cloud data is retained. Use `--local-only` to avoid a cloud connection.
 
 The GCP site is temporarily paused at the user's request, using Terraform-managed manual scaling at zero instances. The public links will return HTTP 503 until resumed. The local Compose application, Prometheus and Grafana are stopped; their volumes and cloud records are preserved.
 
@@ -123,7 +123,7 @@ docker compose --profile local stop app
 docker compose -f compose.yaml -f compose.aws.yaml up --build -d
 ```
 
-The exporter requires `cloudwatch:GetMetricData` permission. It polls four Lambda metrics every five minutes and exposes them only inside the Compose network. Prometheus stores seven days of data with a 512 MB limit. AWS panels show invocations, errors, throttles, and mean duration for a completed five-minute window. Data is delayed by roughly 5Ã¢â‚¬â€œ10 minutes plus CloudWatch ingestion. `GetMetricData` can incur charges; stop the monitoring stack when unused.
+The exporter requires `cloudwatch:GetMetricData` permission. It polls four Lambda metrics every five minutes and exposes them only inside the Compose network. Prometheus stores seven days of data with a 512 MB limit. AWS panels show invocations, errors, throttles, and mean duration for a completed five-minute window. Data is delayed by roughly 5ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“10 minutes plus CloudWatch ingestion. `GetMetricData` can incur charges; stop the monitoring stack when unused.
 
 New `aws login` profiles may require the credential-process bridge described in [AWS_CONNECTION.md](docs/AWS_CONNECTION.md). Container monitoring supports profiles Boto3 can read inside Linux, such as temporary shared credentials and IAM Identity Center profiles. It cannot execute a Windows `aws.exe` credential process inside a Linux container. The guide includes a host-exporter option for that case.
 

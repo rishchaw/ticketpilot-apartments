@@ -6,5 +6,5 @@ networking:
 nodes:
 - role: control-plane
   labels:
-    app.kubernetes.io/part-of: ticketpilot
+    ticketpilot.local/application: ticketpilot
     ticketpilot.local/purpose: portfolio-demo
