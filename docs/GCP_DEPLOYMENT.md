@@ -2,6 +2,12 @@
 
 The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
 
+## Shared lifecycle entry point
+
+For streamlined deployment, use `python scripts/cloud.py gcp deploy --project YOUR-GCP-PROJECT-ID` from the repository root. It builds `Dockerfile.gcp`, runs the pinned real Firestore emulator validation and promotes the same validated local image ID before native `all`. No separate prebuild is required by default. `--skip-build --local-image YOUR-LOCAL-IMAGE-TAG` explicitly reuses a prevalidated image and skips that local emulator check. The native helper instructions below remain the provider-specific/manual path.
+
+See [provider operations](PROVIDER_OPERATIONS.md), [GCP architecture](ARCHITECTURE_GCP.md), [AWS architecture](ARCHITECTURE_AWS.md) and [portability](CLOUD_PORTABILITY.md) for exclusive pause/resume, native monitoring and data/state boundaries. The stop wrapper now stops local workloads and independently pauses both recorded providers by default. Use --provider aws or --provider gcp for one cloud, or --local-only to contact neither. Inspect each result; one provider failure does not block the other attempt.
+
 ## Architecture and cost controls
 
 | Component | Configuration | Purpose |

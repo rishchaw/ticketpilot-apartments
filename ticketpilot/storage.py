@@ -14,6 +14,10 @@ COLUMNS = ("id", "title", "text", "predicted_category", "assigned_team", "confid
            "status", "requires_human_review", "review_reason", "suggested_answer", "answer_mode",
            "sources", "created_at", "updated_at", "resolved_at")
 
+class Conflict(Exception):
+    """A guarded write would cross a storage queue boundary."""
+
+
 def mode() -> str:
     value = os.getenv("STORAGE_MODE", "sqlite").strip().lower()
     if value not in {"sqlite", "dynamodb", "firestore", "none"}:
@@ -72,7 +76,12 @@ def upsert(item: dict) -> dict:
         return item
     if mode() == "dynamodb":
         record = json.loads(json.dumps({**item, "queue": "tickets"}), parse_float=Decimal)
-        _dynamodb().put_item(Item=record)
+        from boto3.dynamodb.conditions import Attr
+        table = _dynamodb()
+        try:
+            table.put_item(Item=record, ConditionExpression=Attr("id").not_exists() | Attr("queue").eq("tickets"))
+        except table.meta.client.exceptions.ConditionalCheckFailedException as exc:
+            raise Conflict("Refusing to overwrite another record queue") from exc
     else:
         record = dict(item)
         record["requires_human_review"] = int(record["requires_human_review"])
@@ -110,7 +119,7 @@ def get(ticket_id: str) -> dict | None:
         return _decode(record) if record else None
     if mode() == "dynamodb":
         item = _dynamodb().get_item(Key={"id": ticket_id}, ConsistentRead=True).get("Item")
-        return _decode(_native(item)) if item else None
+        return _decode(_native(item)) if item and item.get("queue") == "tickets" else None
     with _sql() as c:
         row = c.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
         return _decode(dict(row)) if row else None
@@ -122,7 +131,13 @@ def delete(ticket_id: str) -> bool:
         from ticketpilot import firestore_store
         return firestore_store.legacy_delete(ticket_id)
     if mode() == "dynamodb":
-        return bool(_dynamodb().delete_item(Key={"id": ticket_id}, ReturnValues="ALL_OLD").get("Attributes"))
+        from boto3.dynamodb.conditions import Attr
+        table = _dynamodb()
+        try:
+            result = table.delete_item(Key={"id": ticket_id}, ConditionExpression=Attr("queue").eq("tickets"), ReturnValues="ALL_OLD")
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            return False
+        return bool(result.get("Attributes"))
     with _sql() as c:
         c.execute("DELETE FROM tickets WHERE id=?", (ticket_id,))
         changed = c.execute("SELECT changes()").fetchone()[0] > 0

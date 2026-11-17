@@ -1,71 +1,53 @@
-TicketPilot Apartments - GCP deployment guide
-============================================
+TICKETPILOT APARTMENTS - GCP
+===========================
+Checkpoint: November 17, 2026 (Asia/Manila).
+Run commands from the standalone ticketpilot-aws repository root.
 
-Run every command below from the standalone repository root, ticketpilot-aws,
-in PowerShell. This file documents the recorded deployment; it does not perform
-or claim a fresh live-service check.
+RECORDED STATUS AND RETAINED URLS
+--------------------------------
+Cloud Run/Firestore deployment and synthetic acceptance passed on November 16.
+Terraform manual-zero pause was recorded on November 17; both URLs returned HTTP 503.
+The last Google CLI/ADC session expired (invalid_rapt). These are recorded facts,
+not a fresh verification by this guide. See docs/DEPLOYMENT_STATUS.md.
 
-Documentation updated: November 17, 2026 (Asia/Manila)
-Recorded status: November 16, 2026
----------------------------------
-Cloud Run in Singapore was deployed with Terraform and verified with fictional
-records. Tenant intake, private tracking, manager notes/replies, concurrent
-updates and independent Firestore SDK persistence passed. Hosted GitHub CI also
-passed all four jobs. See docs/DEPLOYMENT_STATUS.md for the evidence and dates.
-
-Retained deployment URLs (unavailable while intentionally paused):
 Tenant:  https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant
 Manager: https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager
+URLs remain but do not serve while paused. Keep manager codes/tracking links
+private. AWS is a separate rollout; it does not receive Firestore records or
+make old links work against its dataset automatically.
 
-The manager access code is the private ADMIN_TOKEN in local .env. Do not share
-it with tenants. Report-specific tracking links must remain private.
+ARCHITECTURE
+------------
+Cloud Run HTTP container; request-based automatic min0/max1 enabled, MANUAL 0 paused;
+Firestore Standard Native durable records; Secret Manager; Artifact Registry
+immutable digest; attached runtime service account; Cloud Monitoring/Logging.
+Enabled runtime:1 CPU/512 MiB, concurrency4, timeout30s, manual refresh/queue20, AI off.
+Terraform roots: infra/gcp/bootstrap and infra/gcp/app. Shared domain/UI, provider
+adapters and rationale: docs/ARCHITECTURE_GCP.md, docs/CLOUD_PORTABILITY.md.
 
-When enabled, Cloud Run uses request-based billing, automatic scaling minimum
-0/maximum 1 instances, 1 CPU,
-512 MiB, concurrency 4 and a 30-second timeout. Firestore stores durable records;
-Cloud Run's temporary filesystem must not be used for a live SQLite database.
-Manager refresh is manual, the queue limit is 20, and paid AI calls are disabled.
-The CPU classifier and local retrieval remain available. AWS is a separate path
-and remains pending account activation; changing providers does not migrate data.
+TOOLS AND BROWSER SIGN-IN
+-------------------------
+Use Google Cloud CLI, Terraform, the existing Python environment and Docker Desktop
+for local builds. Named configuration ticketpilot-gcp; region asia-southeast1.
+Keep real project/billing IDs/emails in ignored local configuration. Renew CLI
+and ADC separately for the existing configuration without resuming the app:
 
-Requirements and authentication
--------------------------------
-Use Python 3.11, Docker Desktop with Linux containers running, Terraform and the
-Google Cloud CLI. An existing project needs linked trial billing and permissions
-for required APIs, Cloud Run, Firestore, Artifact Registry, Secret Manager,
-service accounts/IAM and the alert budget. Do not upgrade the plan automatically.
-Replace YOUR-PROJECT-ID and any billing placeholder with your own local values;
-do not commit project/billing IDs, account emails or credentials.
-
-For a new local environment only:
-
-  py -3.11 -m venv .venv
-  .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt -r requirements-gcp.txt
-  .\.venv\Scripts\python.exe scripts/setup_local.py
-
-Preserve an existing .env. Secret values are not documented here. ADMIN_TOKEN and
-METRICS_TOKEN map to Secret Manager names ticketpilot-apartments-admin and
-ticketpilot-apartments-metrics. The helper preserves existing cloud secret
-versions and creates only initial values outside Terraform state. Retain the
-matching private local configuration when managing the existing deployment.
-
-Use the named CLI configuration ticketpilot-gcp (not the AWS ticketpilot profile)
-and region asia-southeast1. Skip configuration creation if it already exists:
-
-  gcloud config configurations create ticketpilot-gcp
   gcloud config configurations activate ticketpilot-gcp
   gcloud auth login
-  gcloud config set project YOUR-PROJECT-ID
-  gcloud config set run/region asia-southeast1
   gcloud auth application-default login
-  gcloud auth application-default set-quota-project YOUR-PROJECT-ID
+  gcloud auth application-default set-quota-project YOUR-GCP-PROJECT-ID
 
-CLI login and Application Default Credentials (ADC) are separate. Terraform and
-the Python client use ADC; Cloud Run uses its attached runtime service account.
-No GCP MCP connection or long-lived service-account JSON key is configured.
+No long-lived service-account JSON key or GCP MCP connection is configured.
+ADMIN_TOKEN/METRICS_TOKEN remain private and map to Secret Manager names
+ticketpilot-apartments-admin and ticketpilot-apartments-metrics. Upload values
+outside Terraform state; preserve existing versions unless deliberately rotating.
+Authentication alone does not start the site or local monitoring.
 
-Local build and credential-free validation
------------------------------------------
+OPTIONAL MANUAL LOCAL BUILD AND VALIDATION
+------------------------------------------
+Keep the existing environment. New environments need requirements-dev.txt and
+requirements-gcp.txt plus scripts/setup_local.py. Checks/build below do not
+provision a cloud project. Docker must be running for containers:
 
   .\.venv\Scripts\python.exe -m pytest -q
   terraform fmt -check -recursive infra
@@ -77,132 +59,72 @@ Local build and credential-free validation
   docker pull gcr.io/google.com/cloudsdktool/google-cloud-cli:593.0.0-emulators
   .\.venv\Scripts\python.exe scripts/validate_firestore_local.py --image ticketpilot-gcp:local
 
-The validator uses isolated, labeled Docker objects and fictional data, mounts no
-cloud credentials, enforces 512 MiB/1 CPU/read-only app filesystem, and checks
-privacy, version conflicts and persistence after app restart. It removes only
-its own containers/networks. Docker Desktop uses an internal emulator network
-plus a separate app bridge for localhost access. Reports are under ignored
-.tools/. Passing local checks does not establish live IAM or billing access.
+The isolated emulator checker uses fictional data,512 MiB/1 CPU/read-only app root,
+no host cloud credentials and cleanup of only its own Docker resources. Use the
+GCP Dockerfile; the Lambda image has a different runtime entry point.
 
-Staged cloud deployment
------------------------
-Preserve the existing Terraform state before running against an already deployed
-project. Never start with empty state and recreate resources that already exist.
+CENTRAL PROVIDER OPERATIONS
+---------------------------
+Read scripts/cloud.py --help and docs/PROVIDER_OPERATIONS.md before changes:
 
-First run help and read-only cloud preflight:
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp status --project YOUR-GCP-PROJECT-ID
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp deploy --project YOUR-GCP-PROJECT-ID
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp pause --project YOUR-GCP-PROJECT-ID
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp resume --project YOUR-GCP-PROJECT-ID
 
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --help
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --budget-usd 10 --stage preflight
+Central deploy builds Dockerfile.gcp as ticketpilot-gcp:local, runs the pinned
+real Firestore emulator check and confirms the same local image ID is promoted
+before native scripts/deploy_gcp.py --stage all. No separate prebuild is needed.
+--skip-build --local-image YOUR-LOCAL-IMAGE-TAG explicitly reuses a prevalidated
+image and skips the local emulator check. Native stages remain
+preflight/bootstrap/deploy/all/pause/resume. Deploy preserves saved pause state
+and skips online acceptance while paused. Resume explicitly restores automatic
+min0/max1. Changing stages alter cloud resources; they retain records, secrets,
+images, identity and state. Preserve matching private states/generated settings.
 
-The next two stages CHANGE CLOUD RESOURCES. Bootstrap manages APIs, the regional
-image repository, secret metadata and budget. Deploy inspects Firestore, uploads
-initial secrets if absent, pushes the already-built local image, applies the app
-by immutable digest and runs live synthetic acceptance/guarded cleanup:
+Before enabling a provider, the central guard checks the other configured cloud.
+It cannot ignore active/unknown state. The narrow --confirm-other-offline option
+requires explicit attestation, recorded paused=true and fresh expected unavailable
+HTTP at every known URL when authenticated reads fail; it cannot override an
+authenticated active/tagged deployment. Review the guard result; expired login
+is not successful authenticated verification.
 
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --budget-usd 10 --stage bootstrap
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --budget-usd 10 --stage deploy --local-image ticketpilot-gcp:local
+Native bootstrap needs budget permission. --billing-account supplies an existing
+account; omitting it does not disable budget creation. Inspect existing Firestore
+mode/location before creation; permission errors do not establish absence. See
+docs/GCP_DEPLOYMENT.md for provider-specific configuration/manual fallback.
 
-Each changing stage creates a saved plan, prints a summary, rejects unexpected
-resource types/deletes/replacements and applies without another interactive
-approval prompt. For a separate review pause, run Terraform plan and apply
-separately with the same local variable files; see docs/GCP_DEPLOYMENT.md for
-configuration details. Do not use the Lambda Dockerfile for this GCP image.
+After authorized resume, live acceptance uses fictional concerns and independent
+exact-ID Firestore reads with ADC; guarded cleanup preserves existing data and
+building notices. Never publish private reports, tokens or tenant screenshots.
 
-The helper discovers the linked billing account and requires budget permission.
-Optional --billing-account YOUR-BILLING-ACCOUNT-ID supplies the existing account;
-omitting it does not disable the budget. If permission is unavailable, stop and
-review the manual Terraform fallback with create_budget=false.
+MONITORING, COSTS AND STOP
+-------------------------
+Native deployed views are Cloud Run/Cloud Monitoring/Cloud Logging. Optional local
+Prometheus/Grafana use only the selected active provider:
 
-An existing suitable default Firestore database is left unmodified unless already
-managed in this state. Creation requires confirmed absence. Permission/API errors
-are not evidence of absence; do not replace an incompatible existing database.
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp monitor-start --project YOUR-GCP-PROJECT-ID
+  .\.venv\Scripts\python.exe scripts/cloud.py gcp monitor-stop --project YOUR-GCP-PROJECT-ID
 
-After explicitly resuming the site, an online acceptance rerun creates and
-cleans two fictional records:
+Local monitoring uses authenticated 300-second scraping;pause stops it and retains volumes.
+Deploy/resume does not start monitoring automatically. Requests can still consume
+cloud usage. No hosted Grafana/Prometheus, GKE or paid AI endpoint is added. Kind is
+an isolated fictional-data exercise;CI evidence is separate from cloud deployment.
 
-  .\.venv\Scripts\python.exe scripts/validate_gcp_deployment.py --url https://ticketpilot-apartments-xliyw4o22q-as.a.run.app --project YOUR-PROJECT-ID --env-file .env
+The installed USD 10 gross-cost alert is NOT a spending cap. Check recipients,
+remaining trial credit and expiry. Retained storage/images/secret versions, logs
+and requests can consume allowances/credits. No automatic plan upgrade occurs.
 
-This uses local ADMIN_TOKEN and ADC in-process, checks only its exact synthetic
-IDs and preserves existing tenant records/notices. Do not publish secret values,
-private tracking links, real tenant screenshots or full local deployment reports.
+Double-click STOP_SERVICES.cmd or run scripts/stop_services.py to stop local
+workloads and independently pause both recorded providers. --provider aws or
+--provider gcp selects one; --local-only contacts neither. Inspect each result:
+expired login is a failure, not a verified pause. Real data remains retained.
 
-Temporary offline operation and local Kubernetes
-------------------------------------------------
-For a combined stop from the repository root:
+Preserve both GCP states, private generated .tfvars, backups and accepted digests.
+Never apply empty state over existing resources. Destruction is separate and
+requires explicit protection/data review;Firestore ABANDON/delete protection
+retains the database. Do not delete data, billing or state merely to pause.
 
-  .\.venv\Scripts\python.exe scripts/stop_services.py
-
-This stops Compose while preserving volumes, removes only an owned disposable
-kind demo when Docker is available, and pauses existing GCP through Terraform.
-The project comes from the private local deployment record; use --project
-YOUR-PROJECT-ID if needed. --local-only skips GCP. An already-off Docker engine
-stays off and cluster deletion is skipped; cloud pause is still attempted.
-Check the summary for errors/skipped cloud work. Real cloud data/images/secrets
-and Compose volumes remain; only kind's fictional demo data is disposable.
-
-Read docs/DEPLOYMENT_STATUS.md for the latest verified pause/resume state. Pause
-and resume use the existing Terraform state and modify service scaling only:
-
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage pause
-  .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage resume
-
-These commands CHANGE CLOUD CONFIGURATION. Pause sets paused=true, MANUAL
-scaling and zero instances; the retained service URL becomes unavailable.
-Resume sets paused=false and restores automatic min 0/max 1 scaling. This is
-separate from a new image deployment. Deploy/all preserve the generated paused
-state and skip online acceptance while paused; they do not implicitly resume.
-Preserve generated settings: the Terraform
-default paused=false is enabled. Console-only changes can drift from Terraform.
-
-Both operations retain the database/records, images, secrets, budget and state.
-Retained storage and other services can still consume allowances/credits; pause
-is not a promise of zero total cost and does not upgrade the plan.
-
-For local Compose, stop all services while retaining their volumes:
-
-  docker compose --profile local stop
-
-Restart the local app and Prometheus/Grafana only when wanted:
-
-  docker compose --profile local up -d
-
-Local Docker and cloud scaling are independent. A separate Kubernetes portfolio
-demo runs only in local kind; see docs/KUBERNETES.md. It uses private demo-only
-credentials and fictional SQLite data, no GKE or EKS cluster. Its stop command
-removes only that disposable cluster/data, preserving real Compose/cloud data.
-
-Costs, CI/CD and cleanup
------------------------
-The recorded USD 10/month project budget alerts at 50%, 90% and 100% of gross
-cost before credits. It is NOT A SPENDING CAP. Alerts can lag usage. Confirm
-recipients, remaining trial credit and expiry. Compute, storage, database reads,
-secrets and logs can consume allowances/credits. No automatic plan upgrade occurs.
-
-Prometheus/Grafana stay local in Docker; no always-running monitoring server or
-paid AI endpoint is deployed. Frequent cloud scrapes/polling can start Cloud Run
-and consume compute, so retain manual refresh for a sporadic demonstration.
-
-GitHub Actions runs credential-free tests, emulator/container checks and Terraform
-validation. GCP deployment is the manual local helper path; there is no automatic
-GitHub-to-GCP promotion workflow or installed cloud deployment identity. Existing
-container releases publish app/Lambda images, not a GCP-ready release. See
-docs/CI_CD.md. CI success and live deployment verification are separate evidence.
-
-Keep both infra/gcp/bootstrap and infra/gcp/app state files and private settings.
-The helper preserves terraform.tfvars and writes ignored
-ticketpilot.generated.tfvars, explicitly passed with -var-file. Backups are
-private; never commit .env, .secrets/, credentials, state, plans or tenant data.
-
-Use the pause stage for intentional unavailability. Closing the browser alone
-allows idle scale-down but other requests can still start the enabled service.
-Neither operation deletes retained storage/secrets.
-For deliberate teardown, read docs/GCP_DEPLOYMENT.md, section "Stop or remove the
-demonstration". Explicit protection changes are needed before destruction. Supply
-the same local variable files when planning cleanup. Firestore uses ABANDON and
-delete protection, so app removal retains the database. Bootstrap removal deletes
-repository images and secrets; APIs remain enabled. Do not delete the project,
-disable billing, destroy tenant data or upgrade the plan as automatic cleanup.
-
-Full references: docs/GCP_DEPLOYMENT.md and docs/DEPLOYMENT_STATUS.md.
-
-Windows shortcut: double-click STOP_SERVICES.cmd in the repository root to run the same stop helper. If Google authentication has expired, renew CLI and ADC browser sign-in before future cloud changes. The already paused site stays paused; local Kubernetes does not require Google login.
+Related: docs/PROVIDER_OPERATIONS.md, docs/ARCHITECTURE_GCP.md,
+docs/ARCHITECTURE_AWS.md, docs/CLOUD_PORTABILITY.md, docs/aws/README.txt,
+docs/KUBERNETES.md, docs/CI_CD.md.

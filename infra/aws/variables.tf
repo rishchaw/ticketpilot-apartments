@@ -46,3 +46,39 @@ variable "protect_ticket_data" {
   type    = bool
   default = true
 }
+
+
+variable "paused" {
+  type        = bool
+  default     = false
+  description = "Disable Lambda invocations with zero reserved concurrency while retaining data, secrets and images. Storage charges may remain."
+}
+
+variable "apartment_name" {
+  type    = string
+  default = "Our Apartment"
+}
+
+variable "apartment_units" {
+  type    = string
+  default = "1,2,3,4,5,6,7,8"
+}
+
+variable "manager_refresh_seconds" {
+  type        = number
+  default     = 0
+  description = "Zero makes manager refresh manual, avoiding background Lambda invocations and repeated database reads."
+  validation {
+    condition     = var.manager_refresh_seconds == 0 || (var.manager_refresh_seconds >= 30 && var.manager_refresh_seconds <= 3600 && floor(var.manager_refresh_seconds) == var.manager_refresh_seconds)
+    error_message = "Use 0 or a whole number of seconds from 30 through 3600."
+  }
+}
+
+variable "queue_limit" {
+  type    = number
+  default = 20
+  validation {
+    condition     = var.queue_limit >= 1 && var.queue_limit <= 200 && floor(var.queue_limit) == var.queue_limit
+    error_message = "Use a whole queue limit from 1 through 200."
+  }
+}

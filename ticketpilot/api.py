@@ -10,17 +10,22 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field
 
 from ticketpilot.assistant import suggest
 from ticketpilot.cloud_inference import ROOT, classify
 from ticketpilot.knowledge import index
-from ticketpilot.storage import mode, upsert, recent, get, delete, summary
+from ticketpilot.storage import Conflict, mode, upsert, recent, get, delete, summary
 from ticketpilot.observability import install_metrics, ANSWERS, RETRIEVAL
 
 app = FastAPI(title="TicketPilot AI — Support Operations", version="2.0.0",
               description="Cloud-native helpdesk ML + retrieval + human-in-the-loop workflow")
+
+@app.exception_handler(Conflict)
+async def storage_conflict_handler(request, error):
+    return JSONResponse(status_code=409, content={"detail": "The record changed; reload before retrying"})
+
 
 TEAMS = {"access": "Identity & Access", "billing": "Finance & Billing",
          "infrastructure": "Infrastructure / SRE", "product": "Product Support"}

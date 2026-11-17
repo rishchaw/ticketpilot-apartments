@@ -1,3 +1,27 @@
+# AWS deployed and accepted - November 17, 2026
+
+AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled.
+
+Tenant portal: [https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant). Manager page: [https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager); the private manager code stays in local .env.
+
+AWS profile ticketpilot, ap-southeast-1; no AWS MCP tools were exposed, so deployment used the authorized CLI fallback. Before provisioning the Free Tier API confirmed plan FREE/ACTIVE, USD100 remaining credits and expiration 2027-05-17. This balance was a pre-deploy snapshot, not a promise of remaining credit after usage.
+
+Terraform created ECR, a protected PAY_PER_REQUEST DynamoDB table/GSI, scoped runtime role, 7-day CloudWatch log group, Lambda container/Function URL and both public URL invoke permissions. Two Standard SSM SecureString tokens were uploaded outside Terraform state. App settings: 1024MiB, 30-second timeout, manual refresh0/queue20, LLM_PROVIDER=none. The regional quota is10; reserved_concurrency=-1 uses the shared pool and is not a per-function spending cap. Table/GSI throughput targets25read/10write are best-effort controls.
+
+Accepted digest: sha256:72591b309f4c42c3992987a4240686ed40595eb3c60d89f7d8d3c4b91f82732d. Local Linux/amd64 Lambda image emulation passed before digest promotion. Both AWS Terraform roots validate. The initial post-apply URL check hit a transient reachability error; subsequent authenticated runtime readback and health200 passed, and the helper now retries bounded transient health errors.
+
+Live acceptance passed pages/health, CPU retrieval, tenant intake, cross-key tracking denial, private-note isolation, replies/reopening and one-success/one-conflict concurrent updates. Independent strong reads verified both exact synthetic records. Guarded cleanup deleted both; existing concerns/notices were not listed or modified. Pause/resume changed only Lambda concurrency and verified429 then200 with the same URL/image/data.
+
+GCP remains recorded paused with fresh HTTP503 from both known URLs. Its expired CLI login prevented a fresh control-plane read. The explicit cross-provider guard recorded operator attestation plus the prior pause and fresh unavailable HTTP, without claiming authenticated GCP state. No GCP resume or billing-plan change occurred.
+
+The USD10 AWS budget is implemented as optional Terraform email alerts but NOT installed: no explicit alert recipient was provided. It is not a cap. The existing GCP USD10 gross-cost budget remains separate. Storage/logs/requests can consume credits; tagged ECR images are retained to protect the active digest and need deliberate cleanup of obsolete versions.
+
+The one-click stop helper now pauses both recorded providers independently and preserves data; --provider selects one, --local-only neither. Auth failures remain visible and do not prevent an independent other-provider attempt. Separate provider README.txt guides, Terraform roots and Mermaid architecture diagrams are linked from README.md. Source-level DynamoDB legacy-route isolation now rejects cross-queue writes/races with404/409.
+
+Final local regression:206 tests passed, including storage isolation, version conflicts, provider guard, empty AWS CLI output, pause preservation, post-apply recovery and independent stopping. Hosted CI results are recorded below when available. Authoritative reports remain private under .tools; credentials, state/plans, databases and detailed logs are excluded from source packaging. GCP and local kind are not redeployed by this task.
+
+---
+
 # Temporarily offline; Kubernetes portfolio addition - November 17, 2026
 
 The user requested a temporary cost-saving stop. The GCP Cloud Run service is paused with Terraform-managed paused=true, scaling mode MANUAL and zero manual instances. Both known public service URLs returned HTTP 503. No revision traffic tags were present. The pause applied only the existing Cloud Run service; its image, Firestore database, runtime identity, secrets and budget remain in place.

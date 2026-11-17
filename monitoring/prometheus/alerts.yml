@@ -9,7 +9,7 @@ groups:
         annotations:
           summary: TicketPilot scrape has failed for three minutes
       - alert: TicketPilotServerErrors
-        expr: sum(rate(ticketpilot_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(ticketpilot_http_requests_total[5m])), 0.001) > 0.05
+        expr: sum(rate(ticketpilot_http_requests_total{status=~"5.."}[15m])) / clamp_min(sum(rate(ticketpilot_http_requests_total[15m])), 0.001) > 0.05
         for: 5m
         labels:
           severity: warning

@@ -7,11 +7,14 @@ locals {
 
 resource "aws_dynamodb_table" "tickets" {
   name                        = "${local.name}-tickets"
-  billing_mode                = "PROVISIONED"
-  read_capacity               = 1
-  write_capacity              = 1
+  billing_mode                = "PAY_PER_REQUEST"
   hash_key                    = "id"
   deletion_protection_enabled = var.protect_ticket_data
+  # Best-effort throughput targets, not a guaranteed request ceiling or budget.
+  on_demand_throughput {
+    max_read_request_units  = 25
+    max_write_request_units = 10
+  }
   attribute {
     name = "id"
     type = "S"
@@ -35,8 +38,10 @@ resource "aws_dynamodb_table" "tickets" {
       key_type       = "RANGE"
     }
     projection_type = "ALL"
-    read_capacity   = 1
-    write_capacity  = 1
+    on_demand_throughput {
+      max_read_request_units  = 25
+      max_write_request_units = 10
+    }
   }
 }
 
@@ -95,17 +100,23 @@ resource "aws_lambda_function" "app" {
   architectures                  = ["x86_64"]
   memory_size                    = 1024
   timeout                        = 30
-  reserved_concurrent_executions = var.reserved_concurrency
+  reserved_concurrent_executions = var.paused ? 0 : var.reserved_concurrency
   environment {
     variables = {
-      STORAGE_MODE             = "dynamodb"
-      DYNAMODB_TABLE           = aws_dynamodb_table.tickets.name
-      ADMIN_TOKEN_PARAMETER    = "${local.parameter_prefix}/admin-token"
-      METRICS_TOKEN_PARAMETER  = "${local.parameter_prefix}/metrics-token"
-      LLM_PROVIDER             = var.enable_bedrock ? "bedrock" : "none"
-      BEDROCK_MODEL_ID         = var.bedrock_model_id
-      BEDROCK_REGION           = var.bedrock_region
-      LLM_MAX_CALLS_PER_MINUTE = "3"
+      STORAGE_MODE              = "dynamodb"
+      DYNAMODB_TABLE            = aws_dynamodb_table.tickets.name
+      ADMIN_TOKEN_PARAMETER     = "${local.parameter_prefix}/admin-token"
+      METRICS_TOKEN_PARAMETER   = "${local.parameter_prefix}/metrics-token"
+      LLM_PROVIDER              = var.enable_bedrock ? "bedrock" : "none"
+      BEDROCK_MODEL_ID          = var.bedrock_model_id
+      BEDROCK_REGION            = var.bedrock_region
+      LLM_MAX_CALLS_PER_MINUTE  = "3"
+      APARTMENT_NAME            = var.apartment_name
+      APARTMENT_UNITS           = var.apartment_units
+      APARTMENT_REFRESH_SECONDS = tostring(var.manager_refresh_seconds)
+      APARTMENT_QUEUE_LIMIT     = tostring(var.queue_limit)
+      OPENBLAS_NUM_THREADS      = "1"
+      OMP_NUM_THREADS           = "1"
     }
   }
   depends_on = [aws_iam_role_policy.runtime]
