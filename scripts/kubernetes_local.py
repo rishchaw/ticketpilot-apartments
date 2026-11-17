@@ -319,6 +319,19 @@ def apply_secret(paths, commands, state):
     commands.kube("apply", "-f", "-", input_text=json.dumps(document))
 
 
+def safe_creation_diagnostics(result):
+    """Only pre-workload kind output; redact bootstrap/authentication material."""
+    value = result.stdout + result.stderr
+    value = re.sub(r"-----BEGIN [^-]+-----.*?-----END [^-]+-----", "[REDACTED PEM]", value, flags=re.DOTALL)
+    value = re.sub(r"(?im)^.*(?:client-key-data|client-certificate-data|certificate-authority-data|bootstrapToken|certificate-key).*$",
+                   "[REDACTED authentication detail]", value)
+    value = re.sub(r"(?i)(--token(?:=|\s+)|token:\s*)[A-Za-z0-9._-]+", r"\1[REDACTED]", value)
+    value = re.sub(r"\b[a-z0-9]{6}\\.[a-z0-9]{16}\b", "[REDACTED bootstrap token]", value)
+    # Creation precedes app Secret creation; no workload logs or credentials are collected.
+    lines = value.splitlines()
+    return "\n".join(lines[-100:])
+
+
 def start(paths, commands, args):
     state = prepare(paths, getattr(args, "image", APP_IMAGE))
     if commands.run("docker", "info", "--format", "{{.OSType}}").stdout.strip() != "linux":
@@ -343,6 +356,7 @@ def start(paths, commands, args):
         if created.returncode:
             state["phase"] = "failed"
             _write_private(paths.ownership, state, paths)
+            print(safe_creation_diagnostics(created), file=sys.stderr)
             raise LocalDemoError("Kind creation failed; recorded demo nodes can be removed with stop")
     try:
         verify_node_ownership(state, commands.nodes())
