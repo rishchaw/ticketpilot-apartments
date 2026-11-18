@@ -15,6 +15,7 @@ import time
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
 TOOLS = ROOT / ".tools"
 CONFIG = "ticketpilot-gcp"
 FIRESTORE_EMULATOR = "gcr.io/google.com/cloudsdktool/google-cloud-cli:593.0.0-emulators"
@@ -351,6 +352,17 @@ def change_pause_state(args, paused):
         run([sys.executable, "scripts/smoke_cloud.py", url, "--expected-storage=firestore"])
 
 
+def deployment_values(args, existing, image, manage):
+    # Keep reviewed settings such as unit labels, memory and data protection.
+    values = {**existing, "project_id": args.project, "region": args.region,
+              "image_uri": image, "manage_database": manage,
+              "paused": bool(getattr(args, "leave_paused", False) or existing.get("paused", False))}
+    if getattr(args, "apartment_units", None) is not None:
+        from scripts.tenant_settings import units_csv
+        values["apartment_units"] = units_csv(args.apartment_units)
+    return values
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True)
@@ -362,7 +374,17 @@ def main(argv=None):
                         help="Already-built and emulator-tested Dockerfile.gcp image")
     parser.add_argument("--validate-tenant-workflow", action="store_true", help="Explicitly exercise two existing accounts with current private credentials; routine updates do not need tenant passwords")
     parser.add_argument("--credentials-file", type=Path, default=ROOT / ".secrets/tenant-credentials.json")
+    parser.add_argument("--apartment-units", help="Eight confirmed unit labels, for an explicit deployment update")
+    parser.add_argument("--leave-paused", action="store_true", help="Deploy the image while keeping request serving disabled")
     args = parser.parse_args(argv)
+    if args.apartment_units is not None:
+        from scripts.tenant_settings import units_csv
+        try:
+            args.apartment_units = units_csv(args.apartment_units)
+        except ValueError as error:
+            parser.error(str(error))
+    if (args.apartment_units is not None or args.leave_paused) and args.stage not in ("deploy", "all"):
+        parser.error("Unit configuration and --leave-paused apply only to deploy/all")
     if args.validate_tenant_workflow and args.stage not in ("deploy", "all"):
         parser.error("Explicit tenant workflow validation applies only to deploy/all; use the standalone validator for an active service")
     if not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", args.project):
@@ -388,9 +410,7 @@ def main(argv=None):
     upload_secrets(args)
     repository = f"{args.region}-docker.pkg.dev/{args.project}/ticketpilot-apartments"
     image = build_push(args, repository)
-    outputs = plan_apply("app", {"project_id": args.project, "region": args.region,
-                                "image_uri": image, "manage_database": manage,
-                                "paused": existing.get("paused", False)})
+    outputs = plan_apply("app", deployment_values(args, existing, image, manage))
     url = outputs["service_url"]["value"]
     if outputs["runtime_configuration"]["value"]["paused"]:
         verify_service_state(args, True, url)

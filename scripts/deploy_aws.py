@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
 REGION = "ap-southeast-1"
 FUNCTION = "ticketpilot-aws"
 REPOSITORY = "ticketpilot-aws"
@@ -533,7 +534,7 @@ def deploy(commands, account, quota):
         raise DeploymentError("An existing function was found; restore its private settings/state rather than recreate its configuration")
     active_concurrency = current_concurrency(commands) if function is not None else -1
     # A manual emergency throttle is also respected by ordinary redeployment.
-    paused = bool(saved.get("paused", False)) or active_concurrency == 0 or saved.get("reserved_concurrency") == 0
+    paused = bool(getattr(commands.args, "leave_paused", False) or saved.get("paused", False)) or active_concurrency == 0 or saved.get("reserved_concurrency") == 0
     desired = commands.args.reserved_concurrency or (str(saved["reserved_concurrency"]) if saved.get("reserved_concurrency") in (-1, 1, 2) else "auto")
     reservation = choose_concurrency(quota, active_concurrency, desired)
     image = push_image(commands, account)
@@ -542,6 +543,9 @@ def deploy(commands, account, quota):
     values = {**saved, "region": REGION, "image_uri": image, "enable_bedrock": False,
               "protect_ticket_data": True, "paused": paused, "reserved_concurrency": reservation,
               "manager_refresh_seconds": 0, "queue_limit": 20}
+    if getattr(commands.args, "apartment_units", None) is not None:
+        from scripts.tenant_settings import units_csv
+        values["apartment_units"] = units_csv(commands.args.apartment_units)
     outputs = plan_apply(commands, "app", values, account)
     record_applied(commands, account, values, outputs, tenant_auth_release=1)
     report = observe(commands, account, expected=values)
@@ -560,11 +564,21 @@ def parser():
     result.add_argument("--skip-build", action="store_true", help="Validate and promote an already-built local Lambda image")
     result.add_argument("--reserved-concurrency", choices=("auto", "-1", "1", "2"))
     result.add_argument("--budget-alert-email", default=None, help="Optional explicit recipient for the bootstrap monthly cost alert")
+    result.add_argument("--apartment-units", help="Eight confirmed unit labels for an explicit deployment")
+    result.add_argument("--leave-paused", action="store_true", help="Deploy while retaining zero reserved concurrency")
     return result
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.apartment_units is not None:
+        from scripts.tenant_settings import units_csv
+        try:
+            args.apartment_units = units_csv(args.apartment_units)
+        except ValueError as error:
+            raise DeploymentError(str(error)) from None
+    if (args.apartment_units is not None or args.leave_paused) and args.stage != "deploy":
+        raise DeploymentError("Unit configuration and --leave-paused apply only to deployment")
     if args.account_id:
         validate_account(args.account_id)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", args.profile):

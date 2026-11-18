@@ -7,6 +7,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+from threading import Lock
 from time import monotonic, sleep
 from uuid import uuid4
 import httpx
@@ -23,8 +24,16 @@ class LambdaRuntimeTransport(httpx.BaseTransport):
     """Preserve HTTP API v2 cookies/headers across the real local Lambda handler."""
     def __init__(self, runtime, endpoint):
         self.runtime, self.endpoint = runtime, endpoint
+        self._invocation_lock = Lock()
 
     def handle_request(self, request):
+        # One standalone RIE represents one on-demand execution environment.
+        # Lambda orchestration supplies additional environments in the cloud;
+        # concurrent HTTP posts to this one emulator are not that orchestration.
+        with self._invocation_lock:
+            return self._invoke(request)
+
+    def _invoke(self, request):
         headers = dict(request.headers)
         headers["x-forwarded-proto"] = "https"
         event = {"version": "2.0", "routeKey": "$default", "rawPath": request.url.path,
@@ -69,7 +78,8 @@ def main(argv=None):
     require(started.returncode == 0, "Local Lambda container could not start; no test access codes were printed")
     container_id, created = started.stdout.strip(), []
     report = {"runtime": "built Linux Lambda image via local emulator", "root_filesystem": "read-only; temporary state under /tmp",
-        "aws_and_bedrock_calls": "none; isolated fictional SQLite and tenant configuration"}
+        "aws_and_bedrock_calls": "none; isolated fictional SQLite and tenant configuration",
+        "emulator_invocation_model": "one serialized invocation per local RIE execution environment"}
     passed = False
     try:
         seeded = subprocess.run(["docker", "exec", "-i", container_id, "python", "-m", "ticketpilot.tenant_accounts", "apply", "--credentials-stdin"],
@@ -88,6 +98,7 @@ def main(argv=None):
                     sleep(1)
                 report.update(exercise_http(app, OWNER_TOKEN, created, "Synthetic Lambda check " + uuid4().hex[:12] + ": ",
                                            expected_storage="sqlite", tenant_accounts=inventory))
+                report["concurrent_updates"] = "serialized same-version updates yielded one success and one conflict; concurrent CAS is tested separately on ASGI/Firestore/kind"
                 owner = {"X-Admin-Token": OWNER_TOKEN, "Cookie": ""}
                 require(app.get("/api/tickets", headers={"Cookie": ""}).status_code == 401, "Legacy owner access was allowed anonymously")
                 ticket = {"title": "Synthetic Lambda validation outage", "text": "Production API down with HTTP503 server errors for all synthetic customers."}

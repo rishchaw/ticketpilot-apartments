@@ -95,3 +95,7 @@ Record actual rollout, probe/resource checks, tenant/manager privacy, authentica
 This path demonstrates local Kubernetes workload configuration, storage and observability. GCP Cloud Run deployment and AWS Terraform remain separate provider implementations. The project does not claim a hosted GKE/EKS deployment, multi-node availability or automated provider failover. GitHub CI and cloud deployment are also separate; see [CI/CD](CI_CD.md) for the actual workflow coverage.
 
 On Windows, double-click STOP_SERVICES.cmd in the repository root to run the stop helper. Docker stays off if already offline. Future cloud actions require renewed Google CLI/ADC browser sign-in; local kind does not use Google credentials.
+
+## Fictional tenant logins
+
+Run scripts/validate_kubernetes_local.py after starting the isolated demo to provision its eight fictional accounts. Its private inventory is .tools/kubernetes/tenant-accounts.json; the manager/Grafana codes remain in .secrets/kubernetes-demo.json. These credentials are separate from real AWS tenant handouts and are not mounted from cloud configuration. The app uses a local HTTP cookie mode only for this demo. Stopping the owned cluster deletes its fictional account/session/PVC data.

@@ -7,7 +7,7 @@ from pathlib import Path
 import zipfile
 
 ROOT_FILES = (
-    "README.md", "STOP_SERVICES.cmd", "requirements-cloud.txt", "requirements-dev.txt", "requirements-gcp.txt",
+    "README.md", "STOP_SERVICES.cmd", "TICKETPILOT.cmd", "requirements-cloud.txt", "requirements-dev.txt", "requirements-gcp.txt",
     "Dockerfile", "Dockerfile.lambda", "Dockerfile.gcp", "compose.yaml", "compose.aws.yaml",
     ".gitignore", ".dockerignore", ".env.example", ".gitattributes", "AGENTS.md", "CLAUDE.md",
 )

@@ -1,3 +1,9 @@
+# Operator controls and validation - November 19, 2026
+
+Use TICKETPILOT.cmd and docs/OPERATIONS_QUICKSTART.md for explicit provider Start/Stop/Status/Update and local tools. Menu startup and --check must not contact providers or Docker. Keep both clouds and real local services paused under the current stop request. GCP still needs its explicit authenticated-image Prepare workflow with --leave-paused and separate native account provisioning before Start is permitted. Do not bypass release/account guards or reset tenant passwords during lifecycle operations.
+
+Local regression passed435tests. First tenant-auth hosted run44317754504 passed4jobs but failed its single-environment Lambda emulator invocation; the harness correction and actual image acceptance passed locally. New hosted verification remains pending; read the current Actions result before claiming it green. See docs/DEPLOYMENT_STATUS.md. The RAG guide documents IT-demo retrieval/optional generation versus the apartment portal's fixed bilingual guidance; do not claim building-document RAG or enable paid AI automatically.
+
 # Tenant login rollout and AWS pause - November 18, 2026
 
 The latest request authorizes exactly eight tenant accounts for units1A,1B,2A,2B,2C,3A,3B,3C. Authenticated AWS image sha256:722722a0310ebf824b0740f58d21092f643c213b9132f4c23fe3661e92ca1106 is applied while paused. Eight native DynamoDB accounts and private handouts are provisioned. Local full/browser/Lambda-emulator acceptance passed; no external hosted sign-in acceptance was run because the cloud remains paused. AWS has been paused with reserved concurrency0/HTTP429 following the user stop attempt. Keep AWS, GCP and local services stopped after this work. Isolated fictional local validation may run temporarily and must clean up. Do not resume cloud services merely to test.

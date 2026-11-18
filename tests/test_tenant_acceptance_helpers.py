@@ -140,3 +140,85 @@ def test_cleanup_will_not_remove_record_reassigned_to_another_tenant():
     report = aws_checks.cleanup_owned(table, [receipt], marker)
     assert report["skipped"] == 1
     table.delete_item.assert_not_called()
+
+
+def test_lambda_transport_serializes_one_execution_environment_without_overlapping_invokes():
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, Event, Lock
+    start, entered, overlap, release = Barrier(3), Event(), Event(), Event()
+    active_lock = Lock()
+    state = {"active": 0, "maximum": 0, "calls": 0}
+    def runtime(request):
+        with active_lock:
+            state["active"] += 1
+            state["maximum"] = max(state["maximum"], state["active"])
+            state["calls"] += 1
+            if state["active"] > 1:overlap.set()
+        entered.set()
+        try:
+            assert release.wait(2), "Test release was not signaled"
+            return httpx.Response(200, json={"statusCode": 200, "headers": {}, "body": "ok"})
+        finally:
+            with active_lock:state["active"] -= 1
+    with httpx.Client(transport=httpx.MockTransport(runtime)) as gateway:
+        with httpx.Client(base_url="https://localhost", transport=LambdaRuntimeTransport(gateway, "http://runtime.test/invoke")) as app:
+            def invoke(_):
+                start.wait(timeout=2)
+                return app.get("/health").status_code
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pending = [pool.submit(invoke, i) for i in range(2)]
+                start.wait(timeout=2)
+                try:
+                    assert entered.wait(1)
+                    overlapped = overlap.wait(0.05)
+                finally:
+                    release.set()
+                assert [future.result(timeout=2) for future in pending] == [200, 200]
+    assert not overlapped and state["maximum"] == 1 and state["calls"] == 2
+
+
+def test_workflow_primary_failure_survives_failed_session_cleanup_without_transport_secret_leak(monkeypatch):
+    inventory = checks.synthetic_inventory()
+    private_message = "synthetic-sensitive-transport-detail-do-not-print"
+    def receive(request):
+        path = request.url.path
+        if path == "/health":return httpx.Response(200, json={"storage_mode": "sqlite"})
+        if path in {"/", "/tenant"}:return httpx.Response(303, headers={"location": "/tenant/login"})
+        if path in {"/tenant/login", "/manager"}:return httpx.Response(200)
+        if path == "/api/tenant/session":return httpx.Response(401)
+        if path == "/api/apartments/config":
+            return httpx.Response(200, json={"intake_available": True, "units": [str(i) for i in range(1, 9)]}) if request.headers.get("x-admin-token") else httpx.Response(401)
+        if path.startswith("/api/apartments/manage/concerns/"):return httpx.Response(404)
+        if path == "/api/analyze":return httpx.Response(200, json={"answer_mode": "retrieval", "sources": [{"id": "KB-fixture"}]})
+        if path == "/api/tenant/login":return httpx.Response(401)
+        raise AssertionError("Unexpected preflight endpoint")
+    class BrokenSession:
+        def get(self, path):return httpx.Response(500)
+        def post(self, path):raise httpx.ConnectError(private_message)
+    def login(client, account):
+        actor = BrokenSession()
+        current = getattr(client, "_ticketpilot_tenant_sessions", {})
+        current[account["username"]] = actor
+        client._ticketpilot_tenant_sessions = current
+        return actor
+    monkeypatch.setattr(checks, "tenant_login", login)
+    with httpx.Client(base_url="https://example.test", transport=httpx.MockTransport(receive)) as client:
+        with pytest.raises(checks.ValidationError, match="Authenticated tenant portal unavailable") as caught:
+            checks.exercise_http(client, "synthetic-manager", [], "Synthetic primary failure ", expected_storage="sqlite", tenant_accounts=inventory)
+    report = checks.failure_details(caught.value)
+    assert report["failure"] == "Authenticated tenant portal unavailable (HTTP 500)"
+    assert report["tenant_session_cleanup"] == {"status": "failed", "failures": [{"error_type": "ConnectError"}, {"error_type": "ConnectError"}]}
+    assert private_message not in json.dumps(report)
+
+
+def test_cleanup_only_failure_remains_fatal_and_keeps_safe_http_status():
+    class BrokenSession:
+        def post(self, path):return httpx.Response(503)
+    client = Mock()
+    client._ticketpilot_tenant_sessions = {"fictional-unit": BrokenSession()}
+    with pytest.raises(checks.ValidationError, match="could not be revoked") as caught:
+        checks.logout_sessions(client)
+    report = checks.failure_details(caught.value)
+    assert report["tenant_session_cleanup"]["status"] == "failed"
+    assert report["tenant_session_cleanup"]["failures"][0]["failure"] == "Validation tenant session could not be closed (HTTP 503)"
+    assert checks.capture_sessions(client) == {}

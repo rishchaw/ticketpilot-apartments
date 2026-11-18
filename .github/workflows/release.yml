@@ -66,7 +66,7 @@ jobs:
       - name: Validate the exact release images before publication
         run: |
           docker compose --profile local up -d --no-build
-          python scripts/validate_local_stack.py --restart-app
+          python scripts/validate_local_stack.py --restart-app --seed-demo-tenants
           python scripts/validate_lambda_image.py --image ticketpilot-aws-lambda:release
       - name: Log in to GitHub Container Registry
         env:

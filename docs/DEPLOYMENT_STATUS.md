@@ -1,3 +1,15 @@
+# Controls and RAG documentation - November 19, 2026
+
+TICKETPILOT.cmd now opens an explicit start/stop/status menu for the separate AWS and GCP deployments, optional local monitoring, Docker status and isolated kind demonstration. Start resumes an existing deployment; Update builds/deploys explicitly. Opening the menu and --check contact neither cloud nor Docker. The launcher also passed --check from an unrelated working directory. See docs/OPERATIONS_QUICKSTART.md.
+
+AWS retains the authenticated image and eight native unit accounts described below, with concurrency zero. GCP retains its paused pre-authentication revision and requires the explicit Prepare workflow before Start; that workflow deploys the authenticated image with --leave-paused and provisions a separate account inventory. No provider was resumed or upgraded during this documentation/control work. Private handouts remain under .secrets/tenant-logins/.
+
+The full current local regression passed 435 tests. The first tenant-authentication hosted run (44317754504, source b2c49bb) passed application/browser, Firestore emulator, Kubernetes and Terraform jobs; its Lambda-emulator step failed. The standalone RIE validation transport now serializes invocations to its single execution environment, and cleanup failures preserve the primary error. The corrected real Lambda-image acceptance and 15 focused helper tests passed locally. Hosted verification of this control/harness update is pending publication; do not describe that earlier run as fully green.
+
+The RAG implementation is documented in docs/RAG_IMPLEMENTATION.md: packaged TF-IDF retrieval plus optional owner-requested Bedrock generation for the original IT demo. Paid generation remains disabled. Apartment submissions use fixed bilingual category guidance and do not currently query property documents or call a model.
+
+---
+
 # Eight tenant accounts deployed; services paused - November18,2026
 
 The user confirmed units1A,1B,2A,2B,2C,3A,3B,3C. Exactly eight approved accounts were provisioned in private native DynamoDB auth records. The ignored operator inventory is .secrets/tenant-credentials.json, with one private .txt handout perunit under .secrets/tenant-logins. No credentials were printed, published, included in Terraform, embedded in images, or sent to tenants.

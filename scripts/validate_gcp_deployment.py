@@ -142,9 +142,12 @@ def logout_sessions(client):
             expect(session.post("/api/tenant/logout"), 204, "Validation tenant session could not be closed")
             expect(session.get("/api/tenant/session"), 401, "Logged-out opaque session remained valid")
         except Exception as error:
-            errors.append(type(error).__name__)
+            errors.append(failure_details(error))
     client._ticketpilot_tenant_sessions = {}
-    require(not errors, "One or more validation tenant sessions could not be revoked")
+    if errors:
+        failure = ValidationError("One or more validation tenant sessions could not be revoked")
+        failure.tenant_session_cleanup = {"status": "failed", "failures": errors}
+        raise failure
 
 
 def tracking(client, concern):
@@ -256,7 +259,16 @@ def exercise_http(client, manager_token, created, title_prefix, expected_storage
             "concurrent_updates": "one success and one conflict", "tenant_reply_and_reopening": "passed", "existing_records_and_building_notices": "not listed or modified"}
     finally:
         if not (passed and keep_sessions):
-            logout_sessions(client)
+            # A failing logout must not hide the actual workflow/transport failure.
+            # Only fixed validation messages and error class names enter reports.
+            primary_error = sys.exc_info()[1]
+            try:
+                logout_sessions(client)
+            except Exception as cleanup_error:
+                if primary_error is None:
+                    raise
+                primary_error.tenant_session_cleanup = getattr(cleanup_error, "tenant_session_cleanup",
+                    {"status": "failed", "failures": [{"error_type": type(cleanup_error).__name__}]})
 
 
 def write_report(destination, report):
@@ -271,6 +283,9 @@ def failure_details(exc):
         value["failure"] = str(exc)
     elif isinstance(exc, httpx.HTTPStatusError):
         value["failure"] = "HTTP verification failed (status " + str(exc.response.status_code) + ")"
+    cleanup = getattr(exc, "tenant_session_cleanup", None)
+    if isinstance(cleanup, dict) and cleanup.get("status") == "failed":
+        value["tenant_session_cleanup"] = cleanup
     return value
 
 

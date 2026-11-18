@@ -2,6 +2,8 @@
 
 A formal concern tracker for an eight-unit family-managed apartment building, replacing reports that get buried in a Messenger group chat. Tenants use a mobile web form in English or Filipino/Taglish and save a private tracking link. Building managers review one queue, assign action, post updates, and resolve concerns.
 
+Use [the operations quickstart](docs/OPERATIONS_QUICKSTART.md) for start/stop, cloud bills, Docker and dashboards. Double-click `TICKETPILOT.cmd` for its action menu; opening the menu starts nothing.
+
 ## Provider lifecycle and architecture
 
 AWS has the tenant-authentication release deployed in Singapore and is intentionally paused (Function URL HTTP429). Eight approved accounts are provisioned; private credentials/individual handouts stay under ignored `.secrets/`. GCP also remains paused, retaining an older revision that predates tenant login. It must receive the tested authentication release before any resume. No plan was upgraded and paid AI stays disabled. Read [current evidence](docs/DEPLOYMENT_STATUS.md) and [tenant access/onboarding](docs/TENANT_ACCESS.md).
@@ -161,3 +163,5 @@ The original support demo retains a single owner token. Apartment access uses ex
 ## Stop and clean up
 
 `docker compose down` stops local containers and preserves their data volumes. Cloud cleanup is described in the [AWS guide](docs/AWS_DEPLOYMENT.md#stop-troubleshoot-and-protect-data) and [GCP guide](docs/GCP_DEPLOYMENT.md#stop-or-remove-the-demonstration). The DynamoDB table is protected from deletion by default. Bootstrap teardown deletes all images in the project's ECR repository. Preserve Terraform state files locally; do not publish credentials, `.env`, `.secrets`, state, plans, or personal records.
+
+RAG scope: [retrieval and optional Bedrock implementation](docs/RAG_IMPLEMENTATION.md). The apartment portal currently uses category-based bilingual guidance, with paid generation disabled.

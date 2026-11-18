@@ -38,3 +38,9 @@ The scripts write non-secret summaries to `.tools/local-validation.json` and `.t
 The source virtual environment was repaired after the directory move. Use a fresh pytest `--basetemp` under `.tools/test-runs` and disable the cache provider if old Windows temp/cache permissions remain inaccessible. For normal fresh environments, `python -m pytest -q` remains sufficient.
 
 Live DynamoDB permissions, deployed Lambda cold starts, account billing eligibility and real Bedrock output still need verification after account activation. See [DEPLOYMENT_STATUS.md](DEPLOYMENT_STATUS.md).
+
+## Tenant authentication fixtures
+
+The portal now requires an approved tenant account. Fresh disposable CI/Compose validation explicitly uses --seed-demo-tenants to create eight fictional accounts; never use that option to replace operational tenant accounts. For an already provisioned local backend, pass its matching private --credentials-file. Cloud onboarding inventories are separate from local demo accounts. See TENANT_ACCESS.md.
+
+The standalone Lambda RIE validator serializes invocations for its single execution environment and checks same-version conflict behavior. Genuine concurrent requests are tested separately in application, Firestore and Kubernetes acceptance. The harness preserves the original failure if session cleanup also fails.

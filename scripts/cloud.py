@@ -117,6 +117,11 @@ def native_command(root, provider, stage, args):
                 command += ["--billing-account", args.billing_account]
         if stage in ("all", "deploy") and getattr(args, "validate_tenant_workflow", False):
             command += ["--validate-tenant-workflow", "--credentials-file", str(args.credentials_file)]
+    if stage in ("deploy", "all"):
+        if getattr(args, "apartment_units", None) is not None:
+            command += ["--apartment-units", args.apartment_units]
+        if getattr(args, "leave_paused", False):
+            command.append("--leave-paused")
     return command
 
 
@@ -395,6 +400,8 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("provider", choices=PROVIDERS)
     result.add_argument("action", choices=ACTIONS)
+    result.add_argument("--apartment-units", help="Eight unit labels, for deployment only")
+    result.add_argument("--leave-paused", action="store_true", help="Prepare/deploy without enabling request serving")
     result.add_argument("--profile", default="ticketpilot", help="AWS profile for target AWS or the other-provider guard")
     result.add_argument("--terraform-profile")
     result.add_argument("--account-id")
@@ -415,6 +422,14 @@ def parser():
 
 
 def execute(runner, args):
+    if getattr(args, "apartment_units", None) is not None:
+        from scripts.tenant_settings import units_csv
+        try:
+            args.apartment_units = units_csv(args.apartment_units)
+        except ValueError as error:
+            raise CloudError(str(error)) from None
+    if (getattr(args, "apartment_units", None) is not None or getattr(args, "leave_paused", False)) and args.action != "deploy":
+        raise CloudError("Unit settings and --leave-paused apply only to deploy; start uses resume")
     if getattr(args, "validate_tenant_workflow", False):
         if args.action not in ("deploy", "resume"):
             raise CloudError("Private tenant workflow validation is supported only during deploy/resume")
