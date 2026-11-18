@@ -43,7 +43,7 @@ For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follo
 .\.venv\Scripts\python.exe scripts/cloud.py aws monitor-stop --profile ticketpilot
 ```
 
-Prometheus opens at http://127.0.0.1:9090. Its Targets page should show exactly the selected cloud job up. Try these expressions:
+Prometheus opens at http://127.0.0.1:9090. Allow container startup/discovery and up to five minutes for the first scrape. Its Targets page should then show exactly the selected cloud job up. Try these expressions:
 
 ```promql
 up{job="ticketpilot"}

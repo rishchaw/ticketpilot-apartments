@@ -1,5 +1,8 @@
 # AWS deployed and verified - November 17, 2026
 
+Final readback November18: AWS public health200 (DynamoDB, paid AI off), GCP503. Source commit30cd12a passed all five hosted CI jobs in run44088138007. Optional local AWS Prometheus/Grafana acceptance passed and monitoring was stopped. Preserve AWS active/GCP paused under the latest request; credential expiry does not stop the deployed runtime.
+
+
 The user's new request authorizes a cost-conscious AWS deployment using the verified existing account and profile `ticketpilot` in Singapore (`ap-southeast-1`). This supersedes historical AWS activation-blocked guidance below. Browser authentication/account checks succeeded: Free plan `ACTIVE`, USD 100 in credits, recorded expiration `2027-05-17`. Completed Terraform apply, HTTPS health, live apartment acceptance and independent exact-ID DynamoDB reads passed. AWS pause429/resume200 passed; leave AWS active under the new request. The accepted image digest is recorded privately and in deployment status. No AWS MCP tools are exposed here, so use the documented CLI fallback and official/local skills. Never upgrade the plan automatically or enable paid AI by default.
 
 The initial regional Lambda concurrency quota is 10. Enabled `reserved_concurrency=-1` uses the shared/unreserved pool and supplies no dedicated per-function cap; pause uses zero. Preserve native PAY_PER_REQUEST DynamoDB, Standard SSM, ECR, CloudWatch and separate AWS states. Budget email is explicit local opt-in; never guess a recipient. Keep real account/project/billing IDs, emails, values, state/plans and detailed reports out of tracked examples.

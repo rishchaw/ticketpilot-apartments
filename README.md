@@ -18,7 +18,7 @@ The GCP site is temporarily paused at the user's request, using Terraform-manage
 
 The Google CLI/ADC session has expired and needs browser renewal before future cloud changes. The already paused site does not need sign-in renewal to stay paused.
 
-Use the existing private Terraform state/settings when running the pause/resume stages in [the GCP guide](docs/GCP_DEPLOYMENT.md). Retained database/image/secret storage can still incur costs. The optional [local Kubernetes portfolio demo](docs/KUBERNETES.md) runs the application, Prometheus and Grafana in kind, with isolated fictional data and no cloud cluster. Its runtime acceptance and cleanup passed in [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882).
+Use the existing private Terraform state/settings when running the pause/resume stages in [the GCP guide](docs/GCP_DEPLOYMENT.md). Retained database/image/secret storage can still incur costs. The optional [local Kubernetes portfolio demo](docs/KUBERNETES.md) runs the application, Prometheus and Grafana in kind, with isolated fictional data and no cloud cluster. Its runtime acceptance and cleanup passed in [CI run 44088138007](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44088138007).
 
 ## CI/CD
 

@@ -18,7 +18,12 @@ The USD10 AWS budget is implemented as optional Terraform email alerts but NOT i
 
 The one-click stop helper now pauses both recorded providers independently and preserves data; --provider selects one, --local-only neither. Auth failures remain visible and do not prevent an independent other-provider attempt. Separate provider README.txt guides, Terraform roots and Mermaid architecture diagrams are linked from README.md. Source-level DynamoDB legacy-route isolation now rejects cross-queue writes/races with404/409.
 
-Final local regression:206 tests passed, including storage isolation, version conflicts, provider guard, empty AWS CLI output, pause preservation, post-apply recovery and independent stopping. Hosted CI results are recorded below when available. Authoritative reports remain private under .tools; credentials, state/plans, databases and detailed logs are excluded from source packaging. GCP and local kind are not redeployed by this task.
+Final local regression:206 tests passed, including storage isolation, version conflicts, provider guard, empty AWS CLI output, pause preservation, post-apply recovery and independent stopping. Hosted CI results and final monitoring verification are recorded below. Authoritative reports remain private under .tools; credentials, state/plans, databases and detailed logs are excluded from source packaging. GCP and local kind are not redeployed by this task.
+
+
+Final verification on November 18, 2026: system HTTP client confirmed AWS /health200 with DynamoDB/AI-off and the retained GCP health URL503. Optional local monitoring acceptance passed: exactly one selected AWS target up at300s, Grafana datasource healthy, both dashboards loaded and15-minute server-error rules present. Prometheus/Grafana were stopped afterward; local volumes remain.
+
+Hosted [CI run44088138007](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44088138007) passed all five jobs for source commit30cd12a63e9e7077d047326ee5f2551656501f52: application/browser workflow, Docker/monitoring/Lambda runtime, GCP/Firestore emulator, local Kubernetes/monitoring, and Terraform configuration. The Kubernetes job ran on the hosted Linux runner, independently of cloud hosting. This follow-up edits evidence/guides only; no provider was redeployed and no real tenant data was touched.
 
 ---
 
