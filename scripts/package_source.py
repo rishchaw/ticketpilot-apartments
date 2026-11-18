@@ -24,6 +24,43 @@ BLOCKED_PATTERNS = (
 )
 CREDENTIAL_TYPES = {"service_account", "authorized_user", "external_account", "external_account_authorized_user"}
 SECRET_FIELDS = {"private_key", "client_secret", "access_token", "refresh_token", "aws_secret_access_key", "aws_session_token"}
+AUTH_SECRET_FIELDS = {"password", "passwordhash", "hashedpassword", "passworddigest", "csrftoken", "csrf", "sessiontoken", "sessiontokens", "sessioncookie", "sessionid"}
+AUTH_RECORD_KINDS = {"tenant_user", "tenant_session"}
+SCHEMA_FIELD_KEYS = {"type", "format", "title", "description", "minLength", "maxLength", "pattern", "writeOnly", "readOnly", "$ref", "anyOf", "oneOf", "allOf", "nullable"}
+
+
+def _secret_material(value):
+    if isinstance(value, str):
+        return bool(value)
+    if isinstance(value, list):
+        return any(_secret_material(item) for item in value)
+    if isinstance(value, dict):
+        # A public field definition is not a populated password/token. Defaults
+        # and examples are deliberately excluded from this schema exception.
+        if set(value) <= SCHEMA_FIELD_KEYS and ("type" in value or "$ref" in value):
+            return False
+        # Also recognize native SDK attribute wrappers such as {"S": value}.
+        return any(_secret_material(item) for item in value.values())
+    return False
+
+
+def _auth_credentials(value):
+    if isinstance(value, list):
+        return any(_auth_credentials(item) for item in value)
+    if not isinstance(value, dict):
+        return False
+    kind = value.get("kind")
+    if isinstance(kind, dict):
+        kind = kind.get("S", kind.get("stringValue"))
+    if isinstance(kind, str) and kind in AUTH_RECORD_KINDS:
+        return True
+    for key, item in value.items():
+        normalized = key.casefold().replace("_", "").replace("-", "")
+        if normalized in AUTH_SECRET_FIELDS and _secret_material(item):
+            return True
+        if _auth_credentials(item):
+            return True
+    return False
 
 
 def _generated_json(path: Path) -> bool:
@@ -34,6 +71,8 @@ def _generated_json(path: Path) -> bool:
         document = json.loads(path.read_text(encoding="utf-8-sig"))
     except (UnicodeError, json.JSONDecodeError):
         return False
+    if _auth_credentials(document):
+        return True
     if not isinstance(document, dict):
         return False
     credential_type = document.get("type")

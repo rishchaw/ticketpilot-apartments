@@ -8,6 +8,7 @@ is used. Build/pull the two images before running this checker.
 from __future__ import annotations
 import argparse
 import json
+import re
 from pathlib import Path
 import secrets
 import socket
@@ -21,13 +22,13 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from scripts.validate_gcp_deployment import ValidationError, exercise_http, failure_details, require, tracking, write_report
+from scripts.validate_gcp_deployment import ValidationError, exercise_http, failure_details, require, tracking, write_report, synthetic_inventory, logout_sessions
 
 LABEL = "ticketpilot.validation.run"
 
 
-def docker(*arguments, check=True, timeout=90):
-    result = subprocess.run(["docker", *arguments], capture_output=True, text=True, timeout=timeout)
+def docker(*arguments, data=None, check=True, timeout=90):
+    result = subprocess.run(["docker", *arguments], input=data, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     if check and result.returncode:
         # Never echo command arguments/environment: even test access codes stay private.
         raise ValidationError("Docker " + arguments[0] + " failed; inspect the local validation log")
@@ -101,6 +102,7 @@ def main(argv=None):
     emulator_name = network + "-firestore"
     app_name = network + "-app"
     local_token = secrets.token_urlsafe(32)
+    inventory = synthetic_inventory()
     report = {"scope": "Local disposable Docker app plus real Firestore emulator; fictional records only",
               "container_memory_limit_mib": 512, "container_cpu_limit": 1,
               "root_filesystem": "read-only; temporary /tmp", "cloud_credentials": "not mounted",
@@ -108,10 +110,14 @@ def main(argv=None):
               "docker_networking": "internal emulator network; separate app bridge for localhost access"}
     created = []
     passed = False
+    image_id = None
     try:
         # Avoid implicit registry/network pulls in a purportedly local validation.
-        for image in (args.image, args.emulator_image):
-            docker("image", "inspect", image, timeout=15)
+        application = json.loads(docker("image", "inspect", args.image, timeout=15).stdout)
+        require(len(application) == 1, "Expected exactly one local application image")
+        image_id = application[0].get("Id", "")
+        require(bool(re.fullmatch(r"sha256:[0-9a-f]{64}", image_id)) and application[0].get("Os") == "linux" and application[0].get("Architecture") == "amd64", "Use the tested Linux amd64 application image")
+        docker("image", "inspect", args.emulator_image, timeout=15)
         docker("network", "create", "--internal", "--label", LABEL + "=" + run_id, network, timeout=30)
         # Docker Desktop cannot reliably publish host ports from an internal-only
         # network. Keep Firestore isolated there, while the app uses its own
@@ -129,16 +135,18 @@ def main(argv=None):
                "-e", "FIRESTORE_DATABASE=(default)", "-e", "FIRESTORE_EMULATOR_HOST=firestore:8085",
                "-e", "ADMIN_TOKEN=" + local_token, "-e", "METRICS_TOKEN=local-firestore-validation-only",
                "-e", "LLM_PROVIDER=none", "-e", "AWS_EC2_METADATA_DISABLED=true", "-e", "APARTMENT_REFRESH_SECONDS=0",
-               "-e", "APARTMENT_QUEUE_LIMIT=20", "-e", "APARTMENT_UNITS=1,2,3,4,5,6,7,8", args.image, timeout=30)
+               "-e", "APARTMENT_QUEUE_LIMIT=20", "-e", "TENANT_COOKIE_SECURE=false", "-e", "APARTMENT_UNITS=1,2,3,4,5,6,7,8", image_id, timeout=30)
         docker("network", "connect", network, app_name, timeout=30)
         with httpx.Client(base_url="http://127.0.0.1:" + str(port), timeout=30, follow_redirects=False, trust_env=False) as client:
             wait_for_services(client, app_name, emulator_name)
             info = inspect_container(app_name)
+            require(info.get("Image") == image_id, "Validation container image differs from the inspected immutable image")
             require(info["HostConfig"]["Memory"] == 512 * 1024 * 1024, "App memory limit is not 512 MiB")
             require(info["HostConfig"]["NanoCpus"] == 1000000000 and info["HostConfig"]["ReadonlyRootfs"] is True, "App CPU/root-filesystem limits are not enforced")
-            config = client.get("/api/apartments/config").json()
+            docker("exec", "-i", app_name, "python", "-m", "ticketpilot.tenant_accounts", "apply", "--credentials-stdin", data=json.dumps(inventory), timeout=90)
+            config = client.get("/api/apartments/config", headers={"X-Admin-Token": local_token}).json()
             require(config.get("manager_refresh_seconds") == 0 and config.get("queue_limit") == 20, "Low-read-cost manager settings were not applied")
-            report.update(exercise_http(client, local_token, created, "Synthetic local GCP check " + run_id[:12] + ": "))
+            report.update(exercise_http(client, local_token, created, "Synthetic local GCP check " + run_id[:12] + ": ", tenant_accounts=inventory, keep_sessions=True))
             # The emulator is isolated, so listing its two fictional concerns is safe.
             queue = client.get("/api/apartments/manage/concerns", headers={"X-Admin-Token": local_token})
             require(queue.status_code == 200, "Local Firestore query failed")
@@ -153,7 +161,11 @@ def main(argv=None):
             wait_after_restart(client)
             for concern in created:
                 tracking(client, concern)
-            report["firestore_persistence_after_app_restart"] = "passed for both synthetic concerns"
+            # The same cookie-backed sessions are used after the process restarts.
+            for tenant_session in client._ticketpilot_tenant_sessions.values():
+                require(tenant_session.get("/api/tenant/session").status_code == 200, "Persisted tenant session was lost after app restart")
+            logout_sessions(client)
+            report["firestore_persistence_after_app_restart"] = "both synthetic concerns and the same tenant sessions persisted"
             report["manager_read_cost_settings"] = "manual refresh; queue limited to 20"
             passed = True
     except Exception as exc:
@@ -193,6 +205,8 @@ def main(argv=None):
             report["cleanup_error_types"] = cleanup_errors
             passed = False
         report["status"] = "passed" if passed else "failed"
+        if passed:
+            report.update(image_id=image_id, tenant_auth_release=1)
         write_report(ROOT / ".tools/gcp-local-validation.json", report)
     return 0 if passed else 1
 

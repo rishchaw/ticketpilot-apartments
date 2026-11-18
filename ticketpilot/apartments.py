@@ -13,7 +13,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from prometheus_client import Counter as MetricCounter
-from ticketpilot import apartment_store as store, storage
+from ticketpilot import apartment_store as store, storage, tenant_auth
 
 router = APIRouter(prefix="/api/apartments", tags=["Apartment concerns"])
 EVENTS = MetricCounter("ticketpilot_apartment_events_total", "Successful apartment workflow actions", ["action"])
@@ -144,12 +144,14 @@ def find(ticket_id):
     return record
 
 
-def tenant_record(ticket_id, key):
+def tenant_record(ticket_id, key, tenant_id):
     ready()
     # Do not disclose whether an ID exists to someone without a valid key.
     if not key or len(key) > 128:
         raise HTTPException(404, "Concern not found or tracking key is incorrect")
     record = find(ticket_id)
+    if record.get("tenant_id") != tenant_id:
+        raise HTTPException(404, "Concern not found or tracking key is incorrect")
     if not secrets.compare_digest(record["tracking_hash"], hashlib.sha256(key.encode()).hexdigest()):
         raise HTTPException(404, "Concern not found or tracking key is incorrect")
     return record
@@ -173,24 +175,33 @@ def append_message(record, field, author, text):
 
 
 @router.get("/config")
-def config():
+def config(request: Request, x_admin_token: str | None = Header(default=None)):
+    if x_admin_token is not None:
+        manager(x_admin_token)
+        visible_units = units()
+    else:
+        visible_units = [tenant_auth.require_tenant(request)["unit"]]
     notice = store.get("apartment_notice") if storage.mode() != "none" else None
-    return {"building_name": os.getenv("APARTMENT_NAME", "Our Apartment"), "units": units(), "categories": CATEGORIES,
+    return {"building_name": os.getenv("APARTMENT_NAME", "Our Apartment"), "units": visible_units, "categories": CATEGORIES,
             "guidance": GUIDANCE, "notice": {key: notice[key] for key in ("title", "message", "updated_at")} if notice and notice["active"] else None,
             "intake_available": bool(os.getenv("ADMIN_TOKEN")) and storage.mode() != "none", "manager_refresh_seconds": manager_refresh_seconds(), "queue_limit": queue_limit()}
 
 
 @router.post("/concerns", status_code=201)
 def create(item: Concern, request: Request):
+    actor = tenant_auth.require_tenant(request, write=True)
     ready()
-    if item.unit not in units():
-        raise HTTPException(422, "Choose a configured apartment unit")
+    if item.unit != actor["unit"]:
+        raise HTTPException(403, "Submit concerns only for your assigned unit")
+    if actor["unit"] not in units():
+        raise HTTPException(503, "Tenant unit configuration requires management review")
     throttle(request)
     key = secrets.token_urlsafe(32)
     ticket_id = "apt_" + uuid4().hex
     stamp = now()
     record = {"id": ticket_id, "queue": "apartment_tickets", "kind": "apartment_ticket",
-              "reference": "APT-" + ticket_id[4:16].upper(), **item.model_dump(exclude={"urgent"}),
+              "reference": "APT-" + ticket_id[4:16].upper(), **item.model_dump(exclude={"urgent", "unit"}),
+              "unit": actor["unit"], "tenant_id": actor["id"],
               "tracking_hash": hashlib.sha256(key.encode()).hexdigest(), "status": "received",
               "priority": "urgent" if item.urgent else "high" if item.category in {"water", "electrical"} else "normal",
               "assigned_to": "", "internal_notes": [], "updates": [], "created_at": stamp, "updated_at": stamp, "resolved_at": None}
@@ -201,13 +212,15 @@ def create(item: Concern, request: Request):
 
 
 @router.get("/concerns/{ticket_id}")
-def track(ticket_id: str, x_ticket_key: str | None = Header(default=None)):
-    return public_record(tenant_record(ticket_id, x_ticket_key))
+def track(ticket_id: str, request: Request, x_ticket_key: str | None = Header(default=None)):
+    actor = tenant_auth.require_tenant(request)
+    return public_record(tenant_record(ticket_id, x_ticket_key, actor["id"]))
 
 
 @router.post("/concerns/{ticket_id}/replies")
 def reply(ticket_id: str, item: Reply, request: Request, x_ticket_key: str | None = Header(default=None)):
-    record = tenant_record(ticket_id, x_ticket_key)
+    actor = tenant_auth.require_tenant(request, write=True)
+    record = tenant_record(ticket_id, x_ticket_key, actor["id"])
     throttle(request)
     append_message(record, "updates", "tenant", item.message)
     if item.reopen:

@@ -9,13 +9,43 @@ from copy import deepcopy
 from threading import Lock
 
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 from ticketpilot.api import app
-from ticketpilot import apartment_store, apartments, firestore_store, storage
+from ticketpilot import apartment_store, apartments, firestore_store, storage, tenant_auth, tenant_auth_store
 
 OWNER = {"X-Admin-Token": "firestore-test-owner"}
 APARTMENT = {"unit": "1", "category": "water", "title": "No water", "description": "Walang tubig sa kusina mula ngayong umaga.", "language": "fil"}
 LEGACY = {"title": "Production API outage", "text": "Production API down with HTTP 503 server errors for every customer."}
+
+TENANT_PASSWORD = "synthetic-tenant-passphrase-only"
+
+
+def seed_test_tenants():
+    accounts = {}
+    for index in range(1, 9):
+        unit = str(index)
+        account = tenant_auth.new_user("unit-" + unit, unit, password=TENANT_PASSWORD + unit)
+        tenant_auth_store.put_if_version("user:" + account["username"], account)
+        accounts[unit] = account
+    tenant_auth_store.put_if_version("registry", {"kind": "tenant_registry", "status": "ready", "slots": [
+        {key: account[key] for key in ("tenant_id", "username", "unit")} for account in accounts.values()]})
+    return accounts
+
+
+def as_tenant(client, unit="1"):
+    sessions = getattr(client, "_tenant_test_sessions", {})
+    if unit not in sessions:
+        client.cookies.clear()
+        response = client.post("/api/tenant/login", headers={"X-TicketPilot-Login": "1"},
+            json={"username": "unit-" + unit, "password": TENANT_PASSWORD + unit})
+        assert response.status_code == 200
+        sessions[unit] = (httpx.Cookies(client.cookies), response.json()["csrf_token"])
+    cookies, csrf = sessions[unit]
+    client.cookies = httpx.Cookies(cookies)
+    client.headers["X-CSRF-Token"] = csrf
+    client._tenant_test_sessions = sessions
+    return client
 
 
 class Snapshot:
@@ -108,11 +138,15 @@ def firestore_client(monkeypatch):
     monkeypatch.setattr(firestore_store, "client", lambda: db)
     monkeypatch.setattr(firestore_store, "_run_transaction", db.transaction)
     apartments._attempts.clear()
-    yield TestClient(app), db
+    seed_test_tenants()
+    with TestClient(app, base_url="https://testserver") as http:
+        as_tenant(http)
+        yield http, db
     apartments._attempts.clear()
 
 
 def create(client, **changes):
+    as_tenant(client, changes.get("unit", APARTMENT["unit"]))
     response = client.post("/api/apartments/concerns", json={**APARTMENT, **changes})
     assert response.status_code == 201, response.text
     return response.json()
@@ -142,6 +176,10 @@ def test_firestore_tenant_privacy_stale_updates_and_reopening(firestore_client):
     receipt = create(client)
     other = create(client, unit="2", category="billing", title="Billing concern")
     path = public_path(receipt)
+    # Correct capability keys still cannot cross authenticated tenant identities.
+    assert client.get(path, headers={"X-Ticket-Key": receipt["tracking_key"]}).status_code == 404
+    assert client.post(path + "/replies", headers={"X-Ticket-Key": receipt["tracking_key"]}, json={"version": 1, "message": "Stolen key attempt"}).status_code == 404
+    as_tenant(client, "1")
     key = {"X-Ticket-Key": receipt["tracking_key"]}
     assert client.get(path).status_code == 404
     assert client.get(path, headers={"X-Ticket-Key": other["tracking_key"]}).status_code == 404
@@ -174,7 +212,8 @@ def test_firestore_collections_isolate_notice_apartment_and_legacy(firestore_cli
     assert [item["id"] for item in storage.recent()] == [legacy["id"]]
     public = client.get("/api/apartments/config").json()["notice"]
     assert set(public) == {"title", "message", "updated_at"}
-    assert set(db.data) == {firestore_store.LEGACY_COLLECTION, firestore_store.APARTMENT_COLLECTION, firestore_store.SETTINGS_COLLECTION}
+    assert set(db.data) == {firestore_store.LEGACY_COLLECTION, firestore_store.APARTMENT_COLLECTION, firestore_store.SETTINGS_COLLECTION, tenant_auth_store.COLLECTION}
+    assert "password_hash" not in str(recent)
     assert set(db.data[firestore_store.SETTINGS_COLLECTION]) == {"apartment_notice"}
     assert client.put("/api/apartments/manage/notice", headers=OWNER, json={"version": 1, "active": False}).status_code == 200
     assert client.get("/api/apartments/config").json()["notice"] is None
@@ -224,3 +263,14 @@ def test_firestore_transport_failures_are_not_reported_as_version_conflicts(fire
     with pytest.raises(RuntimeError, match="Synthetic transport failure"):
         apartment_store.save(record, expected_version=1)
     assert apartment_store.get(record["id"])["version"] == 1
+
+
+def test_firestore_unowned_record_stays_manager_only(firestore_client):
+    client, _ = firestore_client
+    receipt = create(client)
+    record = apartment_store.get(receipt["ticket"]["id"])
+    record.pop("tenant_id")
+    stored = apartment_store.save(record, expected_version=record["version"])
+    assert client.get(public_path(receipt), headers={"X-Ticket-Key": receipt["tracking_key"]}).status_code == 404
+    assert client.get("/api/apartments/manage/concerns/" + stored["id"], headers=OWNER).status_code == 200
+    assert apartment_store.get(stored["id"]) == stored

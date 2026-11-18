@@ -1,3 +1,9 @@
+# Tenant login rollout and AWS pause - November 18, 2026
+
+The latest request authorizes exactly eight tenant accounts for units1A,1B,2A,2B,2C,3A,3B,3C. Authenticated AWS image sha256:722722a0310ebf824b0740f58d21092f643c213b9132f4c23fe3661e92ca1106 is applied while paused. Eight native DynamoDB accounts and private handouts are provisioned. Local full/browser/Lambda-emulator acceptance passed; no external hosted sign-in acceptance was run because the cloud remains paused. AWS has been paused with reserved concurrency0/HTTP429 following the user stop attempt. Keep AWS, GCP and local services stopped after this work. Isolated fictional local validation may run temporarily and must clean up. Do not resume cloud services merely to test.
+
+Use private .secrets/tenant-credentials.json and individual .secrets/tenant-logins/*.txt handouts; never publish passwords/hashes/cookies/CSRF, put them in Terraform, or send tenant messages. Accounts are native backend records with Argon2id and persisted opaque sessions. No public signup. Existing unowned concerns remain manager-only; never auto-assign by unit. Keep tenant_id stable for password resets; a new occupant needs a deliberate new identity policy. See docs/TENANT_ACCESS.md.
+
 # AWS deployed and verified - November 17, 2026
 
 Final readback November18: AWS public health200 (DynamoDB, paid AI off), GCP503. Source commit30cd12a passed all five hosted CI jobs in run44088138007. Optional local AWS Prometheus/Grafana acceptance passed and monitoring was stopped. Preserve AWS active/GCP paused under the latest request; credential expiry does not stop the deployed runtime.

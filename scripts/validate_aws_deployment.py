@@ -22,7 +22,7 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from scripts.validate_gcp_deployment import exercise_http, failure_details, require, write_report
+from scripts.validate_gcp_deployment import exercise_http, failure_details, load_tenant_inventory, require, write_report
 
 
 def verify_binding(lambda_client, function_name, table_name, url):
@@ -42,6 +42,7 @@ def read_exact(table, receipt, marker):
     require(item.get("kind") == "apartment_ticket" and item.get("queue") == "apartment_tickets", "Independent DynamoDB record kind/queue differs")
     require(item.get("version") == receipt.version and item.get("status") == receipt.status, "Independent DynamoDB state differs from the HTTP workflow")
     require(item.get("tracking_hash") == hashlib.sha256(receipt.key.encode()).hexdigest(), "DynamoDB tracking-key hash did not match")
+    require(not receipt.tenant_id or item.get("tenant_id") == receipt.tenant_id, "DynamoDB authenticated tenant ownership did not match")
     return item
 
 
@@ -54,6 +55,8 @@ def cleanup_owned(table, created, marker):
                 result["already_absent"] += 1
                 continue
             owned = item.get("id") == receipt.record_id and item.get("title") == receipt.title and receipt.title.startswith(marker) and item.get("kind") == "apartment_ticket" and item.get("queue") == "apartment_tickets"
+            if receipt.tenant_id:
+                owned = owned and item.get("tenant_id") == receipt.tenant_id
             if receipt.key:
                 owned = owned and item.get("tracking_hash") == hashlib.sha256(receipt.key.encode()).hexdigest()
             if not owned or "version" not in item or "updated_at" not in item:
@@ -62,6 +65,8 @@ def cleanup_owned(table, created, marker):
             # Version/timestamp predicates refuse a changed record between read
             # and delete. Exact title, queue, kind and key hash retain ownership.
             condition = Attr("title").eq(receipt.title) & Attr("queue").eq("apartment_tickets") & Attr("kind").eq("apartment_ticket") & Attr("version").eq(item["version"]) & Attr("updated_at").eq(item["updated_at"]) & Attr("tracking_hash").eq(item["tracking_hash"])
+            if receipt.tenant_id:
+                condition &= Attr("tenant_id").eq(receipt.tenant_id)
             try:
                 table.delete_item(Key={"id": receipt.record_id}, ConditionExpression=condition)
             except table.meta.client.exceptions.ConditionalCheckFailedException:
@@ -83,6 +88,7 @@ def main(argv=None):
     parser.add_argument("--profile", default="ticketpilot")
     parser.add_argument("--region", default="ap-southeast-1")
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
+    parser.add_argument("--credentials-file", type=Path, default=ROOT / ".secrets/tenant-credentials.json")
     args = parser.parse_args(argv)
     parsed = urlparse(args.url)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.port not in (None, 443):
@@ -98,6 +104,7 @@ def main(argv=None):
     try:
         token = dotenv_values(args.env_file).get("ADMIN_TOKEN")
         require(bool(token), "ADMIN_TOKEN is missing from the selected local environment file")
+        inventory = load_tenant_inventory(args.credentials_file)
         session = boto3.Session(profile_name=args.profile, region_name=args.region)
         config = Config(connect_timeout=5, read_timeout=10, retries={"total_max_attempts": 3, "mode": "standard"}, ignore_configured_endpoint_urls=True)
         verify_binding(session.client("lambda", config=config), args.function, args.table, args.url)
@@ -108,7 +115,7 @@ def main(argv=None):
         report["deployment_binding"] = "HTTPS URL and DynamoDB table matched the selected active Lambda"
         report["stage"] = "http_acceptance"
         with httpx.Client(base_url=args.url.rstrip("/"), timeout=35, trust_env=False, follow_redirects=False) as client:
-            report.update(exercise_http(client, token, created, marker, expected_storage="dynamodb"))
+            report.update(exercise_http(client, token, created, marker, expected_storage="dynamodb", tenant_accounts=inventory))
         report["stage"] = "independent_persistence"
         for receipt in created:
             read_exact(table, receipt, marker)

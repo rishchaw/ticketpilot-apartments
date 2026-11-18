@@ -2,14 +2,44 @@
 import hashlib
 import json
 import boto3
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from moto import mock_aws
 from ticketpilot.api import app
-from ticketpilot import apartment_store, apartments, storage
+from ticketpilot import apartment_store, apartments, storage, tenant_auth, tenant_auth_store
 
 OWNER = {"X-Admin-Token": "apartment-test-owner"}
 BODY = {"unit": "1", "category": "water", "title": "Walang tubig", "description": "Walang tubig sa lahat ng gripo mula ngayong umaga.", "language": "fil"}
+
+TENANT_PASSWORD = "synthetic-tenant-passphrase-only"
+
+
+def seed_test_tenants():
+    accounts = {}
+    for index in range(1, 9):
+        unit = str(index)
+        account = tenant_auth.new_user("unit-" + unit, unit, password=TENANT_PASSWORD + unit)
+        tenant_auth_store.put_if_version("user:" + account["username"], account)
+        accounts[unit] = account
+    tenant_auth_store.put_if_version("registry", {"kind": "tenant_registry", "status": "ready", "slots": [
+        {key: account[key] for key in ("tenant_id", "username", "unit")} for account in accounts.values()]})
+    return accounts
+
+
+def as_tenant(client, unit="1"):
+    sessions = getattr(client, "_tenant_test_sessions", {})
+    if unit not in sessions:
+        client.cookies.clear()
+        response = client.post("/api/tenant/login", headers={"X-TicketPilot-Login": "1"},
+            json={"username": "unit-" + unit, "password": TENANT_PASSWORD + unit})
+        assert response.status_code == 200
+        sessions[unit] = (httpx.Cookies(client.cookies), response.json()["csrf_token"])
+    cookies, csrf = sessions[unit]
+    client.cookies = httpx.Cookies(cookies)
+    client.headers["X-CSRF-Token"] = csrf
+    client._tenant_test_sessions = sessions
+    return client
 
 
 @pytest.fixture(params=["sqlite", "dynamodb"])
@@ -25,12 +55,17 @@ def client(request, monkeypatch, tmp_path):
                 KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
                 AttributeDefinitions=[{"AttributeName": n, "AttributeType": "S"} for n in ("id", "queue", "created_at")],
                 GlobalSecondaryIndexes=[{"IndexName": "recent-tickets", "KeySchema": [{"AttributeName": "queue", "KeyType": "HASH"}, {"AttributeName": "created_at", "KeyType": "RANGE"}], "Projection": {"ProjectionType": "ALL"}}])
-        yield TestClient(app)
+        accounts = seed_test_tenants()
+        with TestClient(app, base_url="https://testserver") as http:
+            http._tenant_test_accounts = accounts
+            as_tenant(http)
+            yield http
     storage._dynamodb.cache_clear()
     apartments._attempts.clear()
 
 
 def create(client, **fields):
+    as_tenant(client, fields.get("unit", BODY["unit"]))
     result = client.post("/api/apartments/concerns", json={**BODY, **fields})
     assert result.status_code == 201, result.text
     return result.json()
@@ -52,6 +87,10 @@ def patch(client, receipt, **changes):
 def test_tenant_capabilities_are_private_and_not_stored_raw(client):
     first = create(client)
     second = create(client, unit="2", category="billing", title="Rent concern")
+    as_tenant(client, "2")
+    assert client.get(path(first), headers=key_headers(first)).status_code == 404
+    assert client.post(path(first) + "/replies", headers=key_headers(first), json={"version": 1, "message": "Stolen valid key must not bypass account ownership"}).status_code == 404
+    as_tenant(client, "1")
     assert first["ticket"]["status"] == "received"
     assert "Management" in first["guidance"] or "management" in first["guidance"]
     assert client.get(path(first)).status_code == 404
@@ -85,7 +124,11 @@ def test_complete_workflow_concurrent_updates_reopen_and_legacy_isolation(client
     assert reopened.status_code == 200
     assert reopened.json()["status"] == "received" and reopened.json()["resolved_at"] is None
     assert reopened.json()["updates"][-1]["author"] == "tenant"
-    saved = TestClient(app).get(path(receipt), headers=key_headers(receipt)).json()
+    with TestClient(app, base_url="https://testserver") as restarted:
+        restarted.cookies = httpx.Cookies(client.cookies)
+        restarted.headers["X-CSRF-Token"] = client.headers["X-CSRF-Token"]
+        assert restarted.get("/api/tenant/session").status_code == 200
+        saved = restarted.get(path(receipt), headers=key_headers(receipt)).json()
     assert saved["version"] == 3
     manager_rows = client.get("/api/apartments/manage/concerns", headers=OWNER).json()["items"]
     assert manager_rows[0]["id"] == receipt["ticket"]["id"]
@@ -115,7 +158,10 @@ def test_shared_issue_suggestions_do_not_expose_other_tenants(client):
     create(client, unit="2", description="No water in the kitchen since this morning.")
     q = client.get("/api/apartments/manage/concerns", headers=OWNER).json()
     assert q["possible_shared_issues"][0]["unit_count"] == 2
-    public = client.get(path(first), headers=key_headers(first)).json()
+    as_tenant(client, "1")
+    response = client.get(path(first), headers=key_headers(first))
+    assert response.status_code == 200
+    public = response.json()
     assert "unit_count" not in public and "possible_shared_issues" not in public
     assert client.get("/api/apartments/config").json()["notice"] is None
 
@@ -126,7 +172,7 @@ def test_validation_fail_closed_and_no_paid_provider(client, monkeypatch):
     monkeypatch.setattr("ticketpilot.assistant.call_bedrock", no_provider)
     monkeypatch.setenv("LLM_PROVIDER", "bedrock")
     create(client, urgent=True)
-    assert client.post("/api/apartments/concerns", json={**BODY, "unit": "9"}).status_code == 422
+    assert client.post("/api/apartments/concerns", json={**BODY, "unit": "9"}).status_code == 403
     assert client.post("/api/apartments/concerns", json={**BODY, "title": "   "}).status_code == 422
     assert client.post("/api/apartments/concerns", json={**BODY, "tracking_hash": "injected"}).status_code == 422
     assert client.post("/api/apartments/concerns", json={**BODY, "category": "infrastructure"}).status_code == 422
@@ -175,3 +221,14 @@ def test_cloud_demo_manual_refresh_and_bounded_queue(client, monkeypatch):
     defaults = client.get("/api/apartments/config").json()
     assert defaults["manager_refresh_seconds"] == 30
     assert defaults["queue_limit"] == 200
+
+
+def test_legacy_unowned_concern_is_not_adopted_by_matching_unit(client):
+    receipt = create(client)
+    record = apartment_store.get(receipt["ticket"]["id"])
+    record.pop("tenant_id")
+    record = apartment_store.save(record, expected_version=record["version"])
+    assert client.get(path(receipt), headers=key_headers(receipt)).status_code == 404
+    manager = client.get("/api/apartments/manage/concerns/" + record["id"], headers=OWNER)
+    assert manager.status_code == 200
+    assert apartment_store.get(record["id"]) == record

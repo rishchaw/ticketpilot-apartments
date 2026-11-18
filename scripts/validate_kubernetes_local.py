@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from scripts import kubernetes_local as local
-from scripts.validate_gcp_deployment import exercise_http, tracking, require, ValidationError, failure_details
+from scripts.validate_gcp_deployment import exercise_http, tracking, require, ValidationError, failure_details, synthetic_inventory, load_tenant_inventory, capture_sessions, restore_sessions, logout_sessions
 
 REPORT = ROOT / ".tools/kubernetes-validation.json"
 
@@ -107,6 +107,12 @@ def main():
         local.verify_active(paths, commands, state)
         credentials = json.loads(paths.credentials.read_text(encoding="utf-8"))
         report.update(kubernetes_checks(commands, state))
+        fixture_path = paths.work / "tenant-accounts.json"
+        local._safe_path(fixture_path, paths)
+        if not fixture_path.exists():
+            local._write_private(fixture_path, synthetic_inventory(), paths)
+        inventory = load_tenant_inventory(fixture_path)
+        commands.kube("exec", "-i", "deployment/app", "--", "python", "-m", "ticketpilot.tenant_accounts", "apply", "--credentials-stdin", input_text=json.dumps(inventory), timeout=120)
         endpoints = {}
         for service in ("app", "prometheus", "grafana"):
             forward = Forward(commands, service)
@@ -114,7 +120,8 @@ def main():
             endpoints[service] = forward.start()
         with httpx.Client(base_url=endpoints["app"], timeout=30, trust_env=False, follow_redirects=False) as app:
             report.update(exercise_http(app, credentials["ADMIN_TOKEN"], created,
-                                       "Synthetic Kubernetes check " + uuid4().hex[:12] + ": ", expected_storage="sqlite"))
+                                       "Synthetic Kubernetes check " + uuid4().hex[:12] + ": ", expected_storage="sqlite", tenant_accounts=inventory, keep_sessions=True))
+            sessions = capture_sessions(app)
             require(app.get("/metrics").status_code == 401, "Unauthenticated metrics access allowed")
             metrics = app.get("/metrics", headers={"Authorization": "Bearer " + credentials["METRICS_TOKEN"]})
             require(metrics.status_code == 200 and "ticketpilot_apartment_events_total" in metrics.text, "Authenticated metrics failed")
@@ -147,9 +154,11 @@ def main():
         require(app_pod_uid(commands) != old_uid, "Application pod was not replaced")
         app_url = forwards[0].start()
         with httpx.Client(base_url=app_url, timeout=30, trust_env=False) as app:
+            restore_sessions(app, sessions)
             for receipt in created:
                 tracking(app, receipt)
-        report["persistence_after_pod_replacement"] = "both exact synthetic concerns, versions and statuses persisted on PVC"
+            logout_sessions(app)
+        report["persistence_after_pod_replacement"] = "both exact synthetic concerns and opaque tenant sessions persisted on PVC"
         report["synthetic_data"] = "two fictional concerns only; removed with the owned disposable cluster by lifecycle cleanup"
         passed = True
     except Exception as error:

@@ -12,10 +12,12 @@ import shutil
 import subprocess
 import sys
 import time
+from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / ".tools"
 CONFIG = "ticketpilot-gcp"
+FIRESTORE_EMULATOR = "gcr.io/google.com/cloudsdktool/google-cloud-cli:593.0.0-emulators"
 
 
 def run(command, *, capture=False, data=None, cwd=ROOT, retry_throttling=False):
@@ -213,19 +215,65 @@ def database_mode(args):
     return False
 
 
+
+def _private_report(path):
+    try:
+        if path.is_symlink(): return {}
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def read_tenant_auth_release(args, image):
+    value = _private_report(TOOLS / "gcp-deployment.json")
+    expected = re.escape(f"{args.region}-docker.pkg.dev/{args.project}/ticketpilot-apartments/app") + r"@sha256:[0-9a-f]{64}"
+    return 1 if (isinstance(image, str) and re.fullmatch(expected, image) and type(value.get("tenant_auth_release")) is int
+        and value["tenant_auth_release"] == 1 and value.get("image") == image
+        and value.get("project") == args.project and value.get("region") == args.region) else 0
+
+
+def local_auth_proof(image_id):
+    value = _private_report(TOOLS / "gcp-local-validation.json")
+    return (value.get("status") == "passed" and value.get("image_id") == image_id
+        and type(value.get("tenant_auth_release")) is int and value["tenant_auth_release"] == 1)
+
+
+def validated_local_image(reference):
+    inspected = json.loads(run(["docker", "image", "inspect", reference], capture=True))
+    if not isinstance(inspected, list) or len(inspected) != 1:
+        raise RuntimeError("Expected exactly one local application image.")
+    image_id = inspected[0].get("Id", "")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id) or inspected[0].get("Architecture") != "amd64" or inspected[0].get("Os") != "linux":
+        raise RuntimeError("Use a built Linux amd64 Cloud Run image.")
+    if not local_auth_proof(image_id):
+        # The validator uses --pull=never. Direct native callers must prepare
+        # the pinned emulator locally; central deploy already does so.
+        run([sys.executable, str(ROOT / "scripts/validate_firestore_local.py"), "--image", image_id,
+             "--emulator-image", FIRESTORE_EMULATOR])
+        if not local_auth_proof(image_id):
+            raise RuntimeError("The exact local image lacks a passed tenant-authentication emulator report; no image was promoted.")
+    return image_id
+
+
 def build_push(args, repository):
+    # An immutable local ID binds emulator acceptance and promotion even if a
+    # caller moves its human-readable image tag during deployment.
+    image_id = validated_local_image(args.local_image)
     image = repository + "/app"
-    tag = image + ":poc-" + time.strftime("%Y%m%d%H%M%S", time.gmtime())
-    run(["docker", "image", "inspect", args.local_image], capture=True)
-    # Temporary Docker credential config prevents a persistent access token in ~/.docker/config.json.
+    tag = image + ":poc-" + time.strftime("%Y%m%d%H%M%S", time.gmtime()) + "-" + uuid4().hex[:8]
+    host = run(["docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}"], capture=True)
+    if not host.startswith(("unix://", "npipe://")):
+        raise RuntimeError("Image validation and publication require the same local Docker engine.")
+    # Keep Docker Desktop's selected endpoint while isolating registry auth.
     import tempfile
     with tempfile.TemporaryDirectory(prefix="ticketpilot-docker-", dir=TOOLS) as config:
         token = cloud(args, "auth", "print-access-token", json_result=False)
-        run(["docker", "--config", config, "login", "-u", "oauth2accesstoken",
+        run(["docker", "--config", config, "--host", host, "login", "-u", "oauth2accesstoken",
              "--password-stdin", f"{args.region}-docker.pkg.dev"], capture=True, data=token)
         token = None
-        run(["docker", "tag", args.local_image, tag])
-        run(["docker", "--config", config, "push", tag])
+        run(["docker", "tag", image_id, tag])
+        run(["docker", "--config", config, "--host", host, "push", tag])
     metadata = cloud(args, "artifacts", "docker", "images", "describe", tag)
     digest = metadata["image_summary"]["digest"]
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
@@ -287,15 +335,20 @@ def verify_service_state(args, paused, url):
 
 def change_pause_state(args, paused):
     values = app_settings(args, required=True)
+    proof = read_tenant_auth_release(args, values.get("image_uri"))
+    if not paused and proof != 1:
+        raise RuntimeError("Deploy and emulator-validate the tenant-login release before resuming; this exact image has no matching authentication proof.")
     values["paused"] = paused
     outputs = plan_apply("app", values, scaling_only=True)
     url = outputs["service_url"]["value"]
     verify_service_state(args, paused, url)
     record = TOOLS / "gcp-deployment.json"
-    if record.exists():
-        report = json.loads(record.read_text())
-        report.update(outputs["runtime_configuration"]["value"])
-        record.write_text(json.dumps(report, indent=2))
+    report = _private_report(record)
+    report.update(project=args.project, region=args.region, url=url, image=values["image_uri"], tenant_auth_release=proof)
+    report.update(outputs["runtime_configuration"]["value"])
+    record.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if not paused:
+        run([sys.executable, "scripts/smoke_cloud.py", url, "--expected-storage=firestore"])
 
 
 def main(argv=None):
@@ -307,7 +360,11 @@ def main(argv=None):
     parser.add_argument("--stage", choices=["preflight", "bootstrap", "deploy", "all", "pause", "resume"], default="preflight")
     parser.add_argument("--local-image", default="ticketpilot-gcp:local",
                         help="Already-built and emulator-tested Dockerfile.gcp image")
+    parser.add_argument("--validate-tenant-workflow", action="store_true", help="Explicitly exercise two existing accounts with current private credentials; routine updates do not need tenant passwords")
+    parser.add_argument("--credentials-file", type=Path, default=ROOT / ".secrets/tenant-credentials.json")
     args = parser.parse_args(argv)
+    if args.validate_tenant_workflow and args.stage not in ("deploy", "all"):
+        parser.error("Explicit tenant workflow validation applies only to deploy/all; use the standalone validator for an active service")
     if not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]", args.project):
         parser.error("Use a Google Cloud project ID.")
     if args.region != "asia-southeast1":
@@ -339,12 +396,13 @@ def main(argv=None):
         verify_service_state(args, True, url)
     else:
         run([sys.executable, "scripts/smoke_cloud.py", url, "--expected-storage=firestore"])
-        run([sys.executable, "scripts/validate_gcp_deployment.py", "--url", url, "--project", args.project])
+        if args.validate_tenant_workflow:
+            run([sys.executable, "scripts/validate_gcp_deployment.py", "--url", url, "--project", args.project, "--credentials-file", str(args.credentials_file)])
     cloud(args, "artifacts", "docker", "tags", "add", image, repository + "/app:deployed",
           json_result=False)
     report = {"project": args.project, "region": args.region, "url": url, "image": image,
               "storage": "firestore", **outputs["runtime_configuration"]["value"],
-              "budget_alert_usd": args.budget_usd}
+              "budget_alert_usd": args.budget_usd, "tenant_auth_release": 1}
     (TOOLS / "gcp-deployment.json").write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2))
     return 0

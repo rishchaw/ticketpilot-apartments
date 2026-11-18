@@ -77,6 +77,8 @@ spec:
         env:
         - name: STORAGE_MODE
           value: sqlite
+        - name: TENANT_COOKIE_SECURE
+          value: 'false'
         - name: SQLITE_PATH
           value: /app/state/operations.db
         - name: LLM_PROVIDER

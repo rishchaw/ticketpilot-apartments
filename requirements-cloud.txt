@@ -8,3 +8,6 @@ pydantic>=2.6,<3
 boto3>=1.40,<2
 mangum>=0.19,<1
 prometheus-client>=0.21,<1
+
+# Password hashing for the closed tenant portal.
+argon2-cffi>=25.1,<26

@@ -4,6 +4,8 @@ import argparse
 import csv
 import io
 import json
+import os
+import sys
 from pathlib import Path
 import subprocess
 from time import monotonic, sleep
@@ -13,6 +15,9 @@ import httpx
 from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from scripts.validate_gcp_deployment import synthetic_inventory, load_tenant_inventory, tenant_login, logout_sessions, require, expect
 
 
 def wait_for(client, url, ready=lambda response: response.status_code == 200, seconds=75):
@@ -30,12 +35,54 @@ def wait_for(client, url, ready=lambda response: response.status_code == 200, se
     raise RuntimeError(f"Service not ready at {url}: {last}")
 
 
+
+def local_tenant_inventory(args):
+    path = args.credentials_file or ROOT / (".tools/local-tenant-accounts.json" if args.seed_demo_tenants else ".secrets/tenant-credentials.json")
+    if args.seed_demo_tenants and not path.exists():
+        require(not path.is_symlink(), "Refusing a symlink at the local fictional inventory")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(synthetic_inventory(), stream)
+        path.chmod(0o600)
+    inventory = load_tenant_inventory(path)
+    if args.seed_demo_tenants:
+        # Explicit fixture opt-in is intended for the disposable CI Compose stack.
+        # The app module rejects an existing different registry rather than resetting it.
+        result = subprocess.run(["docker", "compose", "--profile", "local", "exec", "-T", "app", "python", "-m",
+            "ticketpilot.tenant_accounts", "apply", "--credentials-stdin"], cwd=ROOT, input=json.dumps(inventory),
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+        require(result.returncode == 0, "Fictional local tenant seeding failed; no accounts were reset or printed")
+    return inventory
+
+
+def check_tenant_access(client, inventory):
+    for path in ("/", "/tenant"):
+        response = client.get(path, headers={"Cookie": ""})
+        require(response.status_code in {302, 303, 307, 308} and response.headers.get("location") == "/tenant/login", "Anonymous tenant page did not require login")
+    expect(client.get("/tenant/login", headers={"Cookie": ""}), 200, "Tenant login page unavailable")
+    expect(client.get("/api/apartments/config", headers={"Cookie": ""}), 401, "Anonymous tenant config access was allowed")
+    try:
+        for account in inventory["accounts"][:2]:
+            session = tenant_login(client, account)
+            config = expect(session.get("/api/apartments/config"), 200, "Tenant configuration failed").json()
+            require(config.get("units") == [account["unit"]], "Tenant unit was not scoped")
+            expect(session.get("/api/apartments/manage/concerns"), 401, "Tenant session granted manager role")
+            forged_unit = next((a["unit"] for a in inventory["accounts"] if a["unit"] != account["unit"]), "unassigned-unit")
+            expect(session.post("/api/apartments/concerns", json={"unit": forged_unit, "category": "water",
+                "title": "Rejected local unit spoof", "description": "Synthetic invalid submission only."}), 403, "Tenant could spoof another unit")
+    finally:
+        logout_sessions(client)
+    return "anonymous login/API denial; two existing accounts bound to their units; manager separation; no tenant concerns created"
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", default="http://127.0.0.1:8080")
     parser.add_argument("--prometheus", default="http://127.0.0.1:9090")
     parser.add_argument("--grafana", default="http://127.0.0.1:3000")
     parser.add_argument("--restart-app", action="store_true", help="Verify persistence by restarting this project's app container")
+    parser.add_argument("--credentials-file", type=Path, help="Current private eight-account inventory; never reset merely for validation")
+    parser.add_argument("--seed-demo-tenants", action="store_true", help="Explicitly seed eight fictional accounts in a disposable local CI stack; never use on real tenant state")
     args = parser.parse_args()
     for url in (args.app, args.prometheus, args.grafana):
         parsed = urlparse(url)
@@ -47,17 +94,16 @@ def main():
             raise SystemExit(f"Missing {key}; run scripts/setup_local.py first")
     headers = {"X-Admin-Token": values["ADMIN_TOKEN"]}
     report = {}
-    with httpx.Client(timeout=10, trust_env=False) as client:
+    with httpx.Client(base_url=args.app, timeout=10, trust_env=False, follow_redirects=False) as client:
         health = wait_for(client, args.app + "/health").json()
         assert health["storage_mode"] == "sqlite", "Local validation requires SQLite mode"
         report["app_health"] = "ok"
-        assert client.get(args.app + "/").status_code == 200
-        assert client.get(args.app + "/tenant").status_code == 200
-        assert client.get(args.app + "/manager").status_code == 200
+        inventory = local_tenant_inventory(args)
+        report["tenant_authentication"] = check_tenant_access(client, inventory)
+        assert client.get(args.app + "/manager", headers={"Cookie": ""}).status_code == 200
         assert client.get(args.app + "/assets/apartments.js").status_code == 200
-        assert len(client.get(args.app + "/api/apartments/config").json()["units"]) == 8
-        assert client.get(args.app + "/api/apartments/manage/concerns").status_code == 401
-        report["apartment_portal"] = "tenant and manager pages available; manager queue requires authentication"
+        assert client.get(args.app + "/api/apartments/manage/concerns", headers={"Cookie": ""}).status_code == 401
+        report["apartment_portal"] = "tenant portal requires login; manager APIs remain separately authenticated"
         assert client.get(args.app + "/api/knowledge").json()["total"] == 14
         assert client.get(args.app + "/api/tickets").status_code == 401
         assert client.get(args.app + "/metrics").status_code == 401

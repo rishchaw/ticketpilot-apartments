@@ -182,7 +182,7 @@ jobs:
       - name: Build and validate the local app and monitoring
         run: |
           docker compose --profile local up --build -d
-          python scripts/validate_local_stack.py --restart-app
+          python scripts/validate_local_stack.py --restart-app --seed-demo-tenants
       - name: Build and validate the Lambda runtime
         run: |
           docker buildx build --platform linux/amd64 --provenance=false --load \

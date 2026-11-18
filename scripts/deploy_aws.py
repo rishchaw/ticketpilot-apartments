@@ -404,6 +404,19 @@ def validate_service_url(url):
     return url.rstrip("/")
 
 
+
+def read_tenant_auth_release(root, image, account):
+    """Carry proof only for this account/function and the exact validated digest."""
+    path = root / ".tools/aws-deployment.json"
+    try:
+        if path.is_symlink(): return 0
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeError, ValueError):
+        return 0
+    return 1 if (isinstance(value, dict) and type(value.get("tenant_auth_release")) is int and value["tenant_auth_release"] == 1
+        and value.get("deployed") is True and value.get("image_uri") == image
+        and value.get("account_id") == account and value.get("region") == REGION and value.get("function_name") == FUNCTION) else 0
+
 def observe(commands, account, *, expected=None):
     function = current_function(commands)
     if function is None:
@@ -452,6 +465,7 @@ def observe(commands, account, *, expected=None):
         raise DeploymentError("Live health did not confirm concurrency-zero throttling or active DynamoDB storage after bounded retries (" + cause + "); the applied control-plane change was not rolled back")
     report = {"provider": "aws", "region": REGION, "account_id": account, "deployed": True,
               "function_name": FUNCTION, "url": url, "image_uri": image,
+              "tenant_auth_release": read_tenant_auth_release(commands.root, image, account),
               "paused": paused, "reserved_concurrency": concurrency, "health_http_status": status,
               "health_verified": healthy, "verification_pending": not healthy, "health_last_error_type": last_error_type, "data_retained": True, "ai_enabled": runtime.get("LLM_PROVIDER", "none") != "none",
               "monitoring": "Local Prometheus/Grafana; no hosted monitoring resources",
@@ -461,7 +475,7 @@ def observe(commands, account, *, expected=None):
 
 
 
-def record_applied(commands, account, values, outputs):
+def record_applied(commands, account, values, outputs, *, tenant_auth_release=0):
     # A successful guarded apply proves the deployment exists even if a newly
     # created URL is not reachable yet. Persist enough for the stop helper now;
     # this record deliberately makes no successful health-verification claim.
@@ -471,6 +485,7 @@ def record_applied(commands, account, values, outputs):
               "image_uri": validate_image(values["image_uri"], account), "paused": paused,
               "reserved_concurrency": 0 if paused else values["reserved_concurrency"],
               "data_retained": True, "ai_enabled": False,
+              "tenant_auth_release": 1 if type(tenant_auth_release) is int and tenant_auth_release == 1 else 0,
               "health_verified": False, "verification_pending": True, "health_http_status": None,
               "state_source": "successful_guarded_terraform_apply",
               "note": "Applied configuration recorded for safe stopping; live service/HTTP verification is still pending"}
@@ -487,8 +502,13 @@ def record_applied(commands, account, values, outputs):
 def change_pause(commands, account, paused):
     values = read_settings(commands.root, "app", required=True)
     validate_image(values.get("image_uri"), account)
-    if current_function(commands) is None:
+    function = current_function(commands)
+    if function is None:
         raise DeploymentError("There is no existing function to pause/resume; deployment is a separate step")
+    live_image = function.get("Code", {}).get("ResolvedImageUri")
+    proof = read_tenant_auth_release(commands.root, values["image_uri"], account) if live_image == values["image_uri"] else 0
+    if not paused and proof != 1:
+        raise DeploymentError("Deploy and validate the tenant-login release before resuming; this exact live image has no matching authentication proof")
     values["paused"] = paused
     if not paused:
         quota = commands.aws("lambda", "get-account-settings")
@@ -500,7 +520,7 @@ def change_pause(commands, account, paused):
         # operation must not make the next ordinary deployment resume the site.
         private_write(settings_path(commands.root, "app"), "".join(key + " = " + json.dumps(value) + "\n" for key, value in sorted(values.items())))
     outputs = plan_apply(commands, "app", values, account, scaling_only=True)
-    record_applied(commands, account, values, outputs)
+    record_applied(commands, account, values, outputs, tenant_auth_release=proof)
     report = observe(commands, account, expected=values)
     private_write(commands.root / ".tools/aws-deployment.json", report)
     return report
@@ -523,7 +543,7 @@ def deploy(commands, account, quota):
               "protect_ticket_data": True, "paused": paused, "reserved_concurrency": reservation,
               "manager_refresh_seconds": 0, "queue_limit": 20}
     outputs = plan_apply(commands, "app", values, account)
-    record_applied(commands, account, values, outputs)
+    record_applied(commands, account, values, outputs, tenant_auth_release=1)
     report = observe(commands, account, expected=values)
     private_write(commands.root / ".tools/aws-deployment.json", report)
     return report

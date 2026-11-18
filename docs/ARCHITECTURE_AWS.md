@@ -1,13 +1,13 @@
 # AWS architecture and rationale
 
-Verified November 17, 2026 (Asia/Manila). AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled. See [deployment evidence](DEPLOYMENT_STATUS.md).
+Checkpoint November 18, 2026 (Asia/Manila): the tenant-authentication image (digest prefix 722722a0) is deployed to AWS Singapore and intentionally paused with Function URL HTTP429. Eight admitted DynamoDB accounts and individual private handouts are ready. The 312 local tests, real browser workflow and Lambda emulator passed; hosted tenant login was not exercised while the requested stop was preserved. GCP retains an older paused revision. See [deployment evidence](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
 
 ```mermaid
 flowchart TB
     B["Tenant / manager browser"] --> URL["Public HTTPS Lambda Function URL"]
     subgraph AWS["AWS Singapore: ap-southeast-1"]
-        URL --> APP["Lambda container: FastAPI, UI, NumPy and local retrieval"]
-        APP -->|"Versioned records / bounded queue"| DB["DynamoDB PAY_PER_REQUEST + recent-tickets GSI"]
+        URL --> APP["Lambda: tenant login, FastAPI, UI and local retrieval"]
+        APP -->|"Owner-bound concerns and durable sessions"| DB["DynamoDB: concerns + private auth namespace; on-demand + GSI"]
         APP -->|"Cold-start token resolution"| SEC["SSM Standard SecureString"]
         ROLE["Scoped Lambda execution role"] -.-> APP
         ECR["ECR immutable image digest"] --> APP
@@ -22,6 +22,7 @@ flowchart TB
     TF -.-> DB
     TF -.-> ROLE
     TF -.-> BUD
+    OP -->|"Private account CLI, outside Terraform state"| DB
     subgraph OBS["Optional local cloud monitoring session"]
         CP["Prometheus: selected cloud only"] --> CG["Grafana dashboards"]
         CP -->|"Bearer /metrics, every 300s"| APP
@@ -32,11 +33,11 @@ flowchart TB
     end
 ```
 
-Completed Terraform apply and live runtime/database acceptance verified this deployment shape. The optional budget is not installed because no alert recipient was supplied; local monitoring is optional.
+The native infrastructure remains unchanged. The new paused image and eight-account registry are present; full hosted login acceptance remains distinct from successful local/browser/emulator checks and from historical pre-authentication cloud acceptance. The optional budget is not installed because no alert recipient was supplied; local monitoring is optional.
 
 ## Service rationale
 
-Use Lambda because this Python request/response application accepts its tested container packaging and does not need an always-running server. The Function URL supplies the simple HTTPS front door. Manager and per-concern authorization stay in application code; unit selection does not verify tenant identity. Lambda starts through ticketpilot.lambda_handler/Mangum, while Cloud Run uses a separate Uvicorn wrapper.
+Use Lambda because this Python request/response application accepts its tested container packaging and does not need an always-running server. The Function URL supplies the simple HTTPS front door. Tenant account admission, opaque sessions, CSRF, manager authorization and concern ownership stay in application code. The existing DynamoDB table stores private authentication records, salted password hashes and session hashes; no additional hosted identity service is provisioned. Units come from authenticated identities. See [tenant access](TENANT_ACCESS.md). Lambda starts through ticketpilot.lambda_handler/Mangum, while Cloud Run uses a separate Uvicorn wrapper.
 
 Use DynamoDB on-demand for key-based records and bounded index queries. Conditional updates reject stale versions; apartment/legacy records stay logically separate. This avoids fixed table/GSI throughput planning but retains request/storage charges. Provisioned free-capacity allowances do not make on-demand writes free. [Capacity modes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode.html), [DynamoDB pricing](https://aws.amazon.com/dynamodb/pricing/).
 

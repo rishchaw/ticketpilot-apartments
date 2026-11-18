@@ -1,122 +1,114 @@
-"""Exercise the built Lambda image through its local Runtime Interface Emulator."""
+"""Exercise the Lambda image with isolated fictional tenant accounts via local RIE."""
 from __future__ import annotations
 import argparse
+import base64
 import json
 from pathlib import Path
 import socket
 import subprocess
+import sys
 from time import monotonic, sleep
 from uuid import uuid4
-
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from scripts.validate_gcp_deployment import exercise_http, synthetic_inventory, failure_details, require, ValidationError, write_report
+
 OWNER_TOKEN = "local-validation-only-not-a-cloud-token"
 
 
-def main():
+class LambdaRuntimeTransport(httpx.BaseTransport):
+    """Preserve HTTP API v2 cookies/headers across the real local Lambda handler."""
+    def __init__(self, runtime, endpoint):
+        self.runtime, self.endpoint = runtime, endpoint
+
+    def handle_request(self, request):
+        headers = dict(request.headers)
+        headers["x-forwarded-proto"] = "https"
+        event = {"version": "2.0", "routeKey": "$default", "rawPath": request.url.path,
+            "rawQueryString": request.url.query.decode("ascii"), "headers": headers,
+            "requestContext": {"http": {"method": request.method, "path": request.url.path,
+                "sourceIp": "127.0.0.1", "protocol": "HTTP/1.1"}, "domainName": "localhost"},
+            "isBase64Encoded": False}
+        if request.content:
+            event["body"] = request.content.decode("utf-8")
+        if request.headers.get("cookie"):
+            event["cookies"] = [part.strip() for part in request.headers["cookie"].split(";") if part.strip()]
+        response = self.runtime.post(self.endpoint, json=event)
+        response.raise_for_status()
+        payload = response.json()
+        require(isinstance(payload, dict) and isinstance(payload.get("statusCode"), int), "Local Lambda returned a runtime error")
+        output_headers = list(payload.get("headers", {}).items())
+        output_headers.extend(("set-cookie", cookie) for cookie in payload.get("cookies", []))
+        body = payload.get("body", "")
+        content = base64.b64decode(body) if payload.get("isBase64Encoded") else body.encode("utf-8")
+        return httpx.Response(payload["statusCode"], headers=output_headers, content=content, request=request)
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", default="ticketpilot-aws-lambda:local")
     parser.add_argument("--port", type=int, default=9000)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not 1024 <= args.port <= 65535:
         parser.error("Use a nonprivileged local port")
-    with socket.socket() as port_check:
+    with socket.socket() as probe:
         try:
-            port_check.bind(("127.0.0.1", args.port))
+            probe.bind(("127.0.0.1", args.port))
         except OSError:
-            raise SystemExit("Validation port is occupied; select a different --port")
+            parser.error("Validation port is occupied; select another --port")
     name = "ticketpilot-lambda-validation-" + uuid4().hex[:10]
-    command = [
-        "docker", "run", "--rm", "-d", "--name", name,
-        "--read-only", "--tmpfs", "/tmp:rw,size=128m", "--memory", "1g",
-        "-p", f"127.0.0.1:{args.port}:8080",
-        "-e", "STORAGE_MODE=sqlite", "-e", "SQLITE_PATH=/tmp/validation.db",
-        "-e", "LLM_PROVIDER=none", "-e", "AWS_EC2_METADATA_DISABLED=true",
-        "-e", "ADMIN_TOKEN=" + OWNER_TOKEN,
-        "-e", "METRICS_TOKEN=local-validation-only-metrics", args.image,
-    ]
-    started = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-    if started.returncode:
-        raise SystemExit(started.stderr)
-    container_id = started.stdout.strip()
-    report = {}
+    inventory = synthetic_inventory()
+    command = ["docker", "run", "--rm", "-d", "--name", name, "--read-only", "--tmpfs", "/tmp:rw,size=128m", "--memory", "1g",
+        "-p", f"127.0.0.1:{args.port}:8080", "-e", "STORAGE_MODE=sqlite", "-e", "SQLITE_PATH=/tmp/validation.db",
+        "-e", "LLM_PROVIDER=none", "-e", "AWS_EC2_METADATA_DISABLED=true", "-e", "ADMIN_TOKEN=" + OWNER_TOKEN,
+        "-e", "METRICS_TOKEN=local-validation-only-metrics", "-e", "APARTMENT_UNITS=1,2,3,4,5,6,7,8", args.image]
+    started = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    require(started.returncode == 0, "Local Lambda container could not start; no test access codes were printed")
+    container_id, created = started.stdout.strip(), []
+    report = {"runtime": "built Linux Lambda image via local emulator", "root_filesystem": "read-only; temporary state under /tmp",
+        "aws_and_bedrock_calls": "none; isolated fictional SQLite and tenant configuration"}
+    passed = False
     try:
-        with httpx.Client(timeout=30, trust_env=False) as client:
-            url = f"http://127.0.0.1:{args.port}/2015-03-31/functions/function/invocations"
-            def invoke(method, path, body=None, owner=False, ticket_key=None):
-                headers = {"host": "localhost", "content-type": "application/json"}
-                if owner:
-                    headers["x-admin-token"] = OWNER_TOKEN
-                if ticket_key:
-                    headers["x-ticket-key"] = ticket_key
-                event = {
-                    "version": "2.0", "routeKey": "$default", "rawPath": path,
-                    "rawQueryString": "", "headers": headers,
-                    "requestContext": {"http": {"method": method, "path": path, "sourceIp": "127.0.0.1", "protocol": "HTTP/1.1"}},
-                    "isBase64Encoded": False,
-                }
-                if body is not None:
-                    event["body"] = json.dumps(body)
-                response = client.post(url, json=event)
-                response.raise_for_status()
-                payload = response.json()
-                if "statusCode" not in payload:
-                    raise RuntimeError("Lambda runtime error: " + json.dumps(payload))
-                return payload
-            deadline = monotonic() + 75
-            while True:
-                try:
-                    health = invoke("GET", "/health")
-                    break
-                except (httpx.ConnectError, httpx.ReadError):
-                    if monotonic() >= deadline:
-                        raise RuntimeError("Local Lambda runtime did not become ready")
+        seeded = subprocess.run(["docker", "exec", "-i", container_id, "python", "-m", "ticketpilot.tenant_accounts", "apply", "--credentials-stdin"],
+            cwd=ROOT, input=json.dumps(inventory), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
+        require(seeded.returncode == 0, "Local fictional tenant provisioning failed; no accounts were printed")
+        with httpx.Client(timeout=35, trust_env=False) as runtime:
+            endpoint = f"http://127.0.0.1:{args.port}/2015-03-31/functions/function/invocations"
+            with httpx.Client(base_url="https://localhost", transport=LambdaRuntimeTransport(runtime, endpoint), follow_redirects=False) as app:
+                deadline = monotonic() + 75
+                while True:
+                    try:
+                        if app.get("/health").status_code == 200: break
+                    except httpx.HTTPError:
+                        pass
+                    require(monotonic() < deadline, "Local Lambda runtime did not become ready")
                     sleep(1)
-            assert health["statusCode"] == 200
-            assert json.loads(health["body"])["storage_mode"] == "sqlite"
-            assert invoke("GET", "/")["statusCode"] == 200
-            assert invoke("GET", "/api/tickets")["statusCode"] == 401
-            ticket = {"title": "Synthetic Lambda validation outage", "text": "Production API down with HTTP 503 server errors for all synthetic customers."}
-            analysis = invoke("POST", "/api/analyze", ticket)
-            assert analysis["statusCode"] == 200
-            answer = json.loads(analysis["body"])
-            assert answer["answer_mode"] == "retrieval"
-            assert "KB-007" in {source["id"] for source in answer["sources"]}
-            created = invoke("POST", "/api/tickets", ticket, owner=True)
-            assert created["statusCode"] == 201
-            ticket_id = json.loads(created["body"])["id"]
-            changed = invoke("PATCH", "/api/tickets/" + ticket_id, {"status": "resolved"}, owner=True)
-            assert changed["statusCode"] == 200
-            assert json.loads(changed["body"])["resolved_at"]
-            assert invoke("DELETE", "/api/tickets/" + ticket_id, owner=True)["statusCode"] == 204
-            apartment = invoke("POST", "/api/apartments/concerns", {"unit": "1", "category": "water", "title": "Synthetic water report", "description": "Walang tubig sa kusina. Synthetic Lambda validation only.", "language": "fil"})
-            assert apartment["statusCode"] == 201
-            receipt = json.loads(apartment["body"])
-            apartment_path = "/api/apartments/concerns/" + receipt["ticket"]["id"]
-            assert invoke("GET", apartment_path)["statusCode"] == 404
-            assert invoke("GET", apartment_path, ticket_key=receipt["tracking_key"])["statusCode"] == 200
-            assert invoke("GET", "/api/apartments/manage/concerns")["statusCode"] == 401
-            changed = invoke("PATCH", "/api/apartments/manage/concerns/" + receipt["ticket"]["id"], {"version": 1, "status": "resolved", "priority": "high", "message": "Synthetic update", "internal_note": "Private synthetic note"}, owner=True)
-            assert changed["statusCode"] == 200
-            public = invoke("GET", apartment_path, ticket_key=receipt["tracking_key"])
-            assert json.loads(public["body"])["status"] == "resolved"
-            assert "Private synthetic note" not in public["body"]
-            report = {
-                "apartment_workflow": "tenant intake, private tracking, manager update and private-note isolation passed",
-                "runtime": "built Linux Lambda image via local emulator",
-                "root_filesystem": "read-only; temporary state under /tmp",
-                "website_and_health": "passed",
-                "public_analysis": "classifier and cited retrieval passed",
-                "anonymous_owner_access": "denied",
-                "owner_workflow": "create, resolve, delete passed",
-                "aws_and_bedrock_calls": "none; synthetic local configuration",
-            }
+                report.update(exercise_http(app, OWNER_TOKEN, created, "Synthetic Lambda check " + uuid4().hex[:12] + ": ",
+                                           expected_storage="sqlite", tenant_accounts=inventory))
+                owner = {"X-Admin-Token": OWNER_TOKEN, "Cookie": ""}
+                require(app.get("/api/tickets", headers={"Cookie": ""}).status_code == 401, "Legacy owner access was allowed anonymously")
+                ticket = {"title": "Synthetic Lambda validation outage", "text": "Production API down with HTTP503 server errors for all synthetic customers."}
+                result = app.post("/api/tickets", json=ticket, headers=owner)
+                require(result.status_code == 201, "Legacy ticket creation failed")
+                ticket_id = result.json()["id"]
+                result = app.patch("/api/tickets/" + ticket_id, json={"status": "resolved"}, headers=owner)
+                require(result.status_code == 200 and result.json().get("resolved_at"), "Legacy owner resolution failed")
+                require(app.delete("/api/tickets/" + ticket_id, headers=owner).status_code == 204, "Legacy synthetic cleanup failed")
+                report["owner_workflow"] = "legacy synthetic create/resolve/delete passed; tenant session grants no manager role"
+        passed = True
+    except Exception as error:
+        report.update(failure_details(error))
     finally:
-        subprocess.run(["docker", "stop", "--time", "5", container_id], cwd=ROOT, check=True, capture_output=True)
-    (ROOT / ".tools/lambda-validation.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(report, indent=2))
+        stopped = subprocess.run(["docker", "stop", "--time", "5", container_id], cwd=ROOT, capture_output=True, text=True, timeout=30)
+        report["validation_container_cleanup"] = "removed disposable local container/data" if stopped.returncode == 0 else "failed"
+        passed = passed and stopped.returncode == 0
+        report["status"] = "passed" if passed else "failed"
+        write_report(ROOT / ".tools/lambda-validation.json", report)
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

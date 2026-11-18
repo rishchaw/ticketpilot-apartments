@@ -9,10 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from ticketpilot.tenant_auth import router as tenant_auth_router, tenant_from_request
 from ticketpilot.assistant import suggest
 from ticketpilot.cloud_inference import ROOT, classify
 from ticketpilot.knowledge import index
@@ -92,8 +93,8 @@ def _analyze(item: TicketInput, use_llm: bool = False) -> dict:
     ).model_dump()
 
 @app.get("/", include_in_schema=False)
-def home():
-    return FileResponse(ROOT / "ticketpilot" / "static" / "apartments.html")
+def home(request: Request):
+    return tenant_portal(request)
 
 @app.get("/health")
 def health():
@@ -201,11 +202,28 @@ def seed_examples(x_admin_token: str | None = Header(default=None)):
 # Apartment portal; original support demo stays available at /demo.
 from ticketpilot.apartments import router as apartment_router
 app.include_router(apartment_router)
+app.include_router(tenant_auth_router)
 
 
 @app.get("/tenant", include_in_schema=False)
+def tenant_portal(request: Request):
+    if tenant_from_request(request) is None:
+        return RedirectResponse("/tenant/login", status_code=303)
+    return FileResponse(ROOT / "ticketpilot" / "static" / "apartments.html")
+
+
+@app.get("/tenant/login", include_in_schema=False)
+def tenant_login_page():
+    return FileResponse(ROOT / "ticketpilot" / "static" / "tenant-login.html")
+
+
+@app.get("/assets/tenant-login.js", include_in_schema=False)
+def tenant_login_script():
+    return FileResponse(ROOT / "ticketpilot" / "static" / "tenant-login.js", media_type="text/javascript")
+
+
 @app.get("/manager", include_in_schema=False)
-def apartment_portal():
+def manager_portal():
     return FileResponse(ROOT / "ticketpilot" / "static" / "apartments.html")
 
 
@@ -227,7 +245,7 @@ def apartment_styles():
 @app.middleware("http")
 async def apartment_privacy_headers(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/api/apartments") or request.url.path in {"/", "/tenant", "/manager"}:
+    if request.url.path.startswith(("/api/apartments", "/api/tenant")) or request.url.path in {"/", "/tenant", "/tenant/login", "/manager"}:
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Content-Type-Options"] = "nosniff"

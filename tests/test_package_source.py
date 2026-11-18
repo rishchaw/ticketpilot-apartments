@@ -66,3 +66,53 @@ def test_missing_required_runtime_file_fails_before_creating_an_incomplete_packa
     (source_tree / "Dockerfile.gcp").unlink()
     with pytest.raises(FileNotFoundError, match="Dockerfile.gcp"):
         collect_source_files(source_tree)
+
+
+@pytest.mark.parametrize("location", ["docs/renamed-export.json", "tests/copied-data.json", "ticketpilot/extra-data.json"])
+@pytest.mark.parametrize("field,value", [
+    ("password", "fictional-private-password"),
+    ("password_hash", "$argon2id$fictional-private-digest"),
+    ("csrf_token", "fictional-private-csrf"),
+    ("session_token", "fictional-private-session"),
+    ("session_tokens", ["fictional-private-session"]),
+    ("sessionCookie", "fictional-private-cookie"),
+])
+def test_renamed_nested_tenant_credentials_never_enter_source_package(source_tree, location, field, value):
+    document = {"schema_version": 1, "accounts": [{"tenant_id": "fictional-tenant", "username": "unit-fictional", field: value}]}
+    write(source_tree, location, json.dumps(document))
+    assert location not in names(source_tree)
+
+
+@pytest.mark.parametrize("kind", ["tenant_user", "tenant_session"])
+def test_auth_record_exports_are_excluded_even_without_plaintext_fields(source_tree, kind):
+    for location, document in {
+        "docs/direct-record.json": {"kind": kind, "id": "fictional-private-record"},
+        "tests/list-export.json": [{"kind": kind, "id": "fictional-private-record"}],
+        "docs/sdk-record.json": {"kind": {"S": kind}, "id": {"S": "fictional-private-record"}},
+    }.items():
+        write(source_tree, location, json.dumps(document))
+    selected = names(source_tree)
+    assert not {"docs/direct-record.json", "tests/list-export.json", "docs/sdk-record.json"}.intersection(selected)
+
+
+@pytest.mark.parametrize("field", ["password_hash", "csrf_token", "session_token"])
+def test_direct_auth_fields_and_native_sdk_wrappers_are_excluded(source_tree, field):
+    write(source_tree, "docs/direct-secret.json", json.dumps({field: "fictional-secret"}))
+    write(source_tree, "tests/wrapped-secret.json", json.dumps({field: {"S": "fictional-secret"}}))
+    selected = names(source_tree)
+    assert "docs/direct-secret.json" not in selected and "tests/wrapped-secret.json" not in selected
+
+
+def test_pending_reset_inventory_is_excluded_when_renamed(source_tree):
+    location = "docs/saved-export.json"
+    write(source_tree, location, json.dumps({"action": "reset", "inventory": {"schema_version": 1, "accounts": [{"password": "fictional-private-replacement"}]}}))
+    assert location not in names(source_tree)
+
+
+def test_password_guidance_and_unpopulated_public_schema_remain_reviewable_source(source_tree):
+    guidance = [{"id": "password-reset", "title": "Reset your password", "summary": "Keep session tokens private", "steps": ["Choose a different password", "Never paste csrf_token values into chat"]}]
+    write(source_tree, "docs/password-guidance.json", json.dumps(guidance))
+    schema = {"type": "object", "properties": {"password": {"type": "string", "format": "password", "writeOnly": True}, "csrf_token": {"type": "string", "description": "A CSRF token field"}}}
+    write(source_tree, "docs/auth-schema.json", json.dumps(schema))
+    selected = names(source_tree)
+    assert {"docs/password-guidance.json", "docs/auth-schema.json"} <= selected

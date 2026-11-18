@@ -4,7 +4,7 @@ import boto3
 from fastapi.testclient import TestClient
 from moto import mock_aws
 import pytest
-from ticketpilot import apartments, storage
+from ticketpilot import apartments, storage, tenant_auth, tenant_auth_store
 from ticketpilot.api import app
 
 
@@ -20,13 +20,21 @@ def table(monkeypatch):
     with mock_aws():
         resource = boto3.resource("dynamodb", region_name="ap-southeast-1")
         value = resource.create_table(TableName="synthetic-queue-isolation", KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}], AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}], BillingMode="PAY_PER_REQUEST")
+        accounts = [tenant_auth.new_user("unit-" + str(i), str(i), password="synthetic-queue-tenant-passphrase" + str(i)) for i in range(1, 9)]
+        for account in accounts:
+            tenant_auth_store.put_if_version("user:" + account["username"], account)
+        tenant_auth_store.put_if_version("registry", {"kind": "tenant_registry", "status": "ready", "slots": [
+            {k: a[k] for k in ("tenant_id", "username", "unit")} for a in accounts]})
         yield value
     storage._dynamodb.cache_clear()
     apartments._attempts.clear()
 
 
 def test_legacy_patch_and_delete_cannot_move_or_remove_apartment(table):
-    with TestClient(app) as client:
+    with TestClient(app, base_url="https://testserver") as client:
+        login = client.post("/api/tenant/login", headers={"X-TicketPilot-Login": "1"}, json={"username": "unit-1", "password": "synthetic-queue-tenant-passphrase1"})
+        assert login.status_code == 200
+        client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
         response = client.post("/api/apartments/concerns", json={"unit": "1", "category": "water", "title": "Synthetic queue isolation concern", "description": "Fictional test only; do not perform maintenance.", "language": "en"})
         assert response.status_code == 201
         receipt = response.json()

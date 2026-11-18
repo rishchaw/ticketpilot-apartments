@@ -4,17 +4,17 @@ A formal concern tracker for an eight-unit family-managed apartment building, re
 
 ## Provider lifecycle and architecture
 
-AWS is live: [tenant portal](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant) and [manager dashboard](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager). AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled. The Free plan had USD 100 credits at the pre-deploy check; the regional Lambda quota of 10 requires shared concurrency, without a dedicated per-function cap. Read [current evidence](docs/DEPLOYMENT_STATUS.md).
+AWS has the tenant-authentication release deployed in Singapore and is intentionally paused (Function URL HTTP429). Eight approved accounts are provisioned; private credentials/individual handouts stay under ignored `.secrets/`. GCP also remains paused, retaining an older revision that predates tenant login. It must receive the tested authentication release before any resume. No plan was upgraded and paid AI stays disabled. Read [current evidence](docs/DEPLOYMENT_STATUS.md) and [tenant access/onboarding](docs/TENANT_ACCESS.md).
 
 Use the same provider-first interface for either cloud: `python scripts/cloud.py aws|gcp deploy|pause|resume|status|monitor-start|monitor-stop`. It delegates to native services/scripts/Terraform and guards against enabling both deployments. Default GCP deploy builds and validates its image automatically. Optional monitoring is local and starts explicitly. The USD 10 alert target is not a cap.
 
-See [the stack guide](docs/STACK_GUIDE.md), [portability and rationale](docs/CLOUD_PORTABILITY.md), [AWS architecture](docs/ARCHITECTURE_AWS.md), [GCP architecture](docs/ARCHITECTURE_GCP.md), [operations](docs/PROVIDER_OPERATIONS.md), [AWS guide](docs/aws/README.txt) and [GCP guide](docs/gcp/README.txt). Provider switching does not migrate records or make Terraform/provider identities universal.
+See [tenant access and private onboarding](docs/TENANT_ACCESS.md), [the stack guide](docs/STACK_GUIDE.md), [portability and rationale](docs/CLOUD_PORTABILITY.md), [AWS architecture](docs/ARCHITECTURE_AWS.md), [GCP architecture](docs/ARCHITECTURE_GCP.md), [operations](docs/PROVIDER_OPERATIONS.md), [AWS guide](docs/aws/README.txt) and [GCP guide](docs/gcp/README.txt). Provider switching does not migrate records or make Terraform/provider identities universal.
 
 ## Current operating state
 
 On Windows, double-click STOP_SERVICES.cmd or run `.\.venv\Scripts\python.exe scripts/stop_services.py`. It stops local Compose, removes only the verified owned disposable kind demo, and independently pauses both recorded AWS/GCP deployments. Real data is retained. Use --provider aws or --provider gcp for one cloud, or --local-only to contact neither.
 
-The GCP site is temporarily paused at the user's request, using Terraform-managed manual scaling at zero instances. The public links will return HTTP 503 until resumed. The local Compose application, Prometheus and Grafana are stopped; their volumes and cloud records are preserved.
+Both cloud sites remain paused at the user's request: AWS reserved concurrency0 returns HTTP429 and GCP manual-zero scaling returns HTTP503. GCP's retained old revision must not be resumed without deploying and provisioning the authenticated release first. Local workloads remain separate; database/image/secret storage can still incur costs while compute is paused.
 
 The Google CLI/ADC session has expired and needs browser renewal before future cloud changes. The already paused site does not need sign-in renewal to stay paused.
 
@@ -24,31 +24,31 @@ Use the existing private Terraform state/settings when running the pause/resume 
 
 [![CI](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml/badge.svg)](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml)
 
-GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation, an isolated GCP/Firestore emulator workflow, a real kind Kubernetes/monitoring workflow and AWS/GCP Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until account activation and bootstrap are complete. See [CI/CD setup and costs](docs/CI_CD.md).
+GitHub Actions runs the full test suite, mobile tenant/manager browser checks, Docker and monitoring validation, Lambda emulation, an isolated GCP/Firestore emulator workflow, a real kind Kubernetes/monitoring workflow and AWS/GCP Terraform validation. Manual container releases rerun checks, test the exact images and publish digest-addressed app/Lambda containers to GHCR. A separate manual AWS promotion workflow uses short-lived OIDC credentials and existing remote Terraform state; it stays disabled until its OIDC and remote-state promotion prerequisites are deliberately configured. See [CI/CD setup and costs](docs/CI_CD.md).
 
 Publish this standalone folder as the repository root. Local .env/secrets, tenant databases, tools and Terraform state/plans are excluded. GitHub source/CI delivery does not host the Python application through Pages.
 
 ## Deploy to GCP or AWS
 
-Separate plain-text deployment guides: [AWS README.txt](docs/aws/README.txt) (deployed and verified) and [GCP README.txt](docs/gcp/README.txt) (verified Cloud Run deployment).
+Separate plain-text deployment guides: [AWS README.txt](docs/aws/README.txt) (authenticated release deployed and paused) and [GCP README.txt](docs/gcp/README.txt) (older revision paused; authentication rollout required).
 
-TicketPilot was deployed and verified on [Google Cloud Run in Singapore](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant), deployed through Terraform with Firestore persistence and Secret Manager. It scales to zero, allows at most one configured instance, uses manual manager refresh and makes no paid AI calls. The service is currently paused. A USD 10/month gross-cost alert budget is installed; it is not a spending cap. Live tenant/manager privacy and SDK persistence checks passed with fictional records. Follow the [GCP guide](docs/GCP_DEPLOYMENT.md) and [current deployment status](docs/DEPLOYMENT_STATUS.md).
+TicketPilot was deployed and verified on [Google Cloud Run in Singapore](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant), deployed through Terraform with Firestore persistence and Secret Manager. It scales to zero, allows at most one configured instance, uses manual manager refresh and makes no paid AI calls. That older revision remains paused and predates tenant accounts; deploy the tested authentication release before any resume. A USD 10/month gross-cost alert budget is installed; it is not a spending cap. Live tenant/manager privacy and SDK persistence checks passed with fictional records. Follow the [GCP guide](docs/GCP_DEPLOYMENT.md) and [current deployment status](docs/DEPLOYMENT_STATUS.md).
 
-AWS Lambda/DynamoDB and GCP Cloud Run/Firestore use the same FastAPI apartment workflow through native adapters. AWS is serving; GCP is paused. Local Compose uses SQLite. Switching providers does not migrate tenant records. Prometheus/Grafana stay local, with paid AI disabled.
+The source shares the FastAPI apartment workflow and account/session contract across AWS Lambda/DynamoDB, GCP Cloud Run/Firestore and local SQLite. AWS has the authenticated image paused; GCP's retained paused image predates it. Switching providers does not migrate tenant accounts, sessions or concerns. Prometheus/Grafana stay local and paid AI stays disabled.
 
 ## Apartment portal
 
-- **Live tenant form:** [https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant). The local form remains http://localhost:8080/tenant (also the local homepage).
-- **Manager dashboard:** [https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager), or http://localhost:8080/manager locally. Use the existing `ADMIN_TOKEN` from your local `.env` as the manager access code; never give it to tenants.
+- **Tenant portal (paused):** [AWS /tenant](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant). After an explicit verified resume, anonymous visitors reach the tenant login page; an approved account is required for the portal and APIs. The local route is http://localhost:8080/tenant when its separate local accounts are provisioned.
+- **Manager dashboard (paused):** [AWS /manager](https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/manager), or http://localhost:8080/manager locally. It keeps its separate `ADMIN_TOKEN` access code. Never give this code or the full tenant inventory to tenants.
 - Concern categories: water/plumbing, maintenance, electrical, rent/utility billing, contract renewal, and other concerns.
-- Each report receives a reference and a private tracking link. Anyone holding that link can read and reply to that report. Unit selection does not verify identity and never grants access to other reports.
+- Eight approved accounts map to units **1A, 1B, 2A, 2B, 2C, 3A, 3B and 3C**. Intake binds the unit server-side. Reading/replying requires the owning account plus the correct private tracking key; another tenant cannot use a copied valid link.
 - Managers can acknowledge, schedule, assign, update, resolve and reopen concerns; tenants can reply and reopen resolved reports. Private manager notes are excluded from tenant responses.
 - Reports from multiple units suggest a possible shared issue for manager review. A manager can publish one confirmed building-wide notice without exposing individual reports.
-- The local manager dashboard checks every 30 seconds; both cloud profiles use manual refresh to avoid unattended compute and database reads. Automatic Messenger/SMS/email notifications, verified tenant accounts, photo uploads, payment processing, and automatic contract decisions are not implemented.
+- Local refresh is configurable; both cloud profiles use manual refresh to avoid unattended compute/database reads. Closed tenant accounts and private sessions are implemented. Messenger/SMS/email notifications, photo uploads, payment processing and automatic contract decisions are separate future features.
 
-The active AWS HTTPS `/tenant` link can be shared or encoded as a QR code after building guidance and onboarding are reviewed. The retained GCP link is unavailable while that service is paused. `localhost` links work only on the development PC. Keep report-specific tracking links private and out of the group chat.
+After an explicit verified AWS resume and onboarding review, share or encode the `/tenant` sign-in link as a QR code. Deliver each account's credentials individually using its private handout; never put passwords or concern-specific links in the group chat. GCP remains unavailable pending authenticated-release deployment and an explicit resume. `localhost` links work only on the development PC.
 
-Set `APARTMENT_NAME` and comma-separated `APARTMENT_UNITS` in `.env` before recreating the Compose app to customize the display name and unit labels. Defaults are **Our Apartment** and units **1-8**. No actual building policies, balances, renewal terms, or maintenance schedules have been invented.
+Set `APARTMENT_NAME` and comma-separated `APARTMENT_UNITS` in `.env` before recreating the Compose app to customize the display name and unit labels. Demo defaults are **Our Apartment** and units **1-8**. The real account registry uses **1A, 1B, 2A, 2B, 2C, 3A, 3B and 3C**; configured units must match it. Changing display labels does not reassign account ownership. No actual building policies, balances, renewal terms, or maintenance schedules have been invented.
 
 Tenant guidance is reviewed-form-style, category-based text with human updates; it does not use the old IT classifier or call a paid AI provider. The original IT classification/RAG demo is preserved at `/demo`, including optional owner-requested Bedrock generation. Its evaluation scores do not measure apartment-domain or bilingual performance.
 
@@ -156,7 +156,7 @@ docker compose --profile local config --quiet
 
 Tests exercise real classification/retrieval and HTTP workflows, and emulate AWS DynamoDB/SSM in process using Moto. Bedrock responses are mocked. They do not verify live account permissions or real model output. The 12 authored synthetic evaluation cases yield 9/12 correct categories and 12/12 expected runbooks retrieved in the top three; this is a smoke test, not a real-world accuracy estimate.
 
-The original support demo uses a single owner token. The apartment pilot uses private per-concern tracking capabilities plus a manager token; it does not verify tenant identity. Use fictional records while testing. A global abuse quota, verified tenant onboarding, tracking-link recovery/revocation, and a deliberate data-retention policy need review before a public live-tenant rollout. DynamoDB queue listings use an eventually consistent index; newly saved or updated records may take a moment to appear. Queue and analytics reads are bounded to 100/200 records.
+The original support demo retains a single owner token. Apartment access uses exactly eight admitted tenant identities, durable private sessions, CSRF and owner-bound concern capabilities, with a separate manager code. Accounts authenticate their credential holders; keep passwords private. Lost-link recovery, real-tenant turnover/reassignment, backups and retention need deliberate review. Persisted login throttles do not cap all HTTP traffic or spending. DynamoDB recent-index reads remain eventually consistent and bounded.
 
 ## Stop and clean up
 

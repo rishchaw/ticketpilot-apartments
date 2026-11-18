@@ -1,3 +1,19 @@
+# Eight tenant accounts deployed; services paused - November18,2026
+
+The user confirmed units1A,1B,2A,2B,2C,3A,3B,3C. Exactly eight approved accounts were provisioned in private native DynamoDB auth records. The ignored operator inventory is .secrets/tenant-credentials.json, with one private .txt handout perunit under .secrets/tenant-logins. No credentials were printed, published, included in Terraform, embedded in images, or sent to tenants.
+
+The stop-command path error was resolved against the actual Documents project root. Browser AWS login was renewed, the stop helper completed, local Compose/owned kind were stopped, and AWS reserved concurrency0 was verified with HTTP429. GCP remains paused with known URLs503 and expired authentication. Real data/state remain retained.
+
+The authenticated Lambda image was built as Linux/amd64, exercised through the real Lambda emulator with eight fictional accounts, pushed by immutable digest and applied through Terraform while paused. Accepted digest: sha256:722722a0310ebf824b0740f58d21092f643c213b9132f4c23fe3661e92ca1106. The app plan changed only the existing Lambda image/environment for the confirmed unit labels. Paid AI remains disabled; no paid identity service, VM or managed Kubernetes cluster was added.
+
+The portal/API require an approved account; concerns bind to immutable tenant_id plus their private tracking key. Forged units, cross-account valid-key access, missing CSRF and manager-role escalation are denied. Argon2id hashes, host-scoped HttpOnly/Secure/Strict opaque sessions, persisted logout/version revocation and shared login attempt limits use separate auth storage. Existing unowned concerns remain manager-only with no automatic unit adoption.
+
+Local validation before lifecycle hardening passed312tests and a real mobile browser workflow, including password/session rotation, logout, own-unit restrictions, stolen-key denial and authenticated restart persistence. The accepted Lambda image passed the full fictional HTTPv2-cookie workflow and cleaned its disposable container. External hosted sign-in acceptance was deliberately not run while AWS is paused. Final source regression after lifecycle/packaging hardening:372tests passed. Hosted CI results follow when available.
+
+Routine lifecycle operations do not need current tenant passwords: public health/anonymous-denial checks are automatic; real-tenant synthetic workflow testing is an explicit option with selected private credentials. Native resume requires matching validated authentication-release metadata for the exact image. The retained GCP revision predates authentication and must be replaced/provisioned before helper resume is allowed.
+
+---
+
 # AWS deployed and accepted - November 17, 2026
 
 AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled.

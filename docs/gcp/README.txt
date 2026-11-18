@@ -1,25 +1,31 @@
 TICKETPILOT APARTMENTS - GCP
 ===========================
-Checkpoint: November 17, 2026 (Asia/Manila).
+Checkpoint: November 18, 2026 (Asia/Manila).
 Run commands from the standalone ticketpilot-aws repository root.
 
 RECORDED STATUS AND RETAINED URLS
 --------------------------------
-Cloud Run/Firestore deployment and synthetic acceptance passed on November 16.
-Terraform manual-zero pause was recorded on November 17; both URLs returned HTTP 503.
-The last Google CLI/ADC session expired (invalid_rapt). These are recorded facts,
-not a fresh verification by this guide. See docs/DEPLOYMENT_STATUS.md.
+The retained Cloud Run/Firestore deployment was accepted on November 16 and then
+paused with Terraform manual-zero scaling; both URLs returned HTTP503. That old
+revision PREDATES tenant login. The source now has portable eight-account access,
+but no authenticated release has been deployed to GCP. Do not resume the old
+public-intake image. First renew CLI/ADC, deploy the tested authentication release
+while paused, and provision a separate private eight-account GCP registry.
 
 Tenant:  https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant
 Manager: https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager
-URLs remain but do not serve while paused. Keep manager codes/tracking links
-private. AWS is a separate rollout; it does not receive Firestore records or
-make old links work against its dataset automatically.
+URLs remain unavailable while paused. See docs/DEPLOYMENT_STATUS.md for actual
+evidence and docs/TENANT_ACCESS.md for accounts and separate provider inventories.
+The target source uses a private Firestore auth collection for password/session
+hashes and revocation. No additional hosted identity service is added. Keep the
+GCP credentials file separate from the private AWS inventory; switching providers
+does not migrate accounts, sessions, concerns or tracking links.
 
 ARCHITECTURE
 ------------
 Cloud Run HTTP container; request-based automatic min0/max1 enabled, MANUAL 0 paused;
-Firestore Standard Native durable records; Secret Manager; Artifact Registry
+Firestore Standard Native durable records (target auth release adds a private
+authentication collection); Secret Manager; Artifact Registry
 immutable digest; attached runtime service account; Cloud Monitoring/Logging.
 Enabled runtime:1 CPU/512 MiB, concurrency4, timeout30s, manual refresh/queue20, AI off.
 Terraform roots: infra/gcp/bootstrap and infra/gcp/app. Shared domain/UI, provider
@@ -78,7 +84,9 @@ before native scripts/deploy_gcp.py --stage all. No separate prebuild is needed.
 --skip-build --local-image YOUR-LOCAL-IMAGE-TAG explicitly reuses a prevalidated
 image and skips the local emulator check. Native stages remain
 preflight/bootstrap/deploy/all/pause/resume. Deploy preserves saved pause state
-and skips online acceptance while paused. Resume explicitly restores automatic
+and skips online acceptance while paused. The retained pre-authentication image
+must be replaced by the tested authenticated release and its accounts provisioned
+before any resume. Resume explicitly restores automatic
 min0/max1. Changing stages alter cloud resources; they retain records, secrets,
 images, identity and state. Preserve matching private states/generated settings.
 
@@ -94,7 +102,8 @@ account; omitting it does not disable budget creation. Inspect existing Firestor
 mode/location before creation; permission errors do not establish absence. See
 docs/GCP_DEPLOYMENT.md for provider-specific configuration/manual fallback.
 
-After authorized resume, live acceptance uses fictional concerns and independent
+After authenticated-release deployment and authorized resume, explicitly requested
+live acceptance uses current authorized tenant credentials, fictional concerns and independent
 exact-ID Firestore reads with ADC; guarded cleanup preserves existing data and
 building notices. Never publish private reports, tokens or tenant screenshots.
 

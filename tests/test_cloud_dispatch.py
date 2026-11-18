@@ -148,16 +148,19 @@ def test_pause_attempts_cloud_even_if_local_monitoring_stop_fails(monkeypatch, t
     assert runner.calls == [("aws", "pause")]
 
 
-def test_aws_deploy_dispatches_bootstrap_then_deploy_and_apartment_acceptance(monkeypatch, tmp_path):
+def test_aws_deploy_dispatches_guarded_native_stages_then_read_only_acceptance(monkeypatch, tmp_path):
+    save(tmp_path, "aws", paused=False)
     runner = FakeRunner(tmp_path)
     order = []
     monkeypatch.setattr(cloud, "guard_other_provider", lambda *_: order.append("guard") or {"paused": True})
     monkeypatch.setattr(cloud, "monitor_stop", lambda *_: order.append("stop-monitoring") or {"stopped": True})
-    monkeypatch.setattr(cloud, "aws_acceptance", lambda *_: order.append("acceptance") or {"status": "passed"})
     runner.native = lambda provider, stage, options: order.append(stage)
+    runner.run = lambda command, **kwargs: order.append(Path(command[1]).name) or ""
     report = cloud.execute(runner, args())
-    assert order == ["guard", "stop-monitoring", "bootstrap", "deploy", "acceptance"]
+    assert order == ["guard", "stop-monitoring", "bootstrap", "deploy", "smoke_cloud.py"]
     assert report["acceptance"]["status"] == "passed"
+    assert "read-only" in report["acceptance"]["scope"].lower()
+    assert "not requested" in report["acceptance"]["tenant_workflow"]
 
 
 def test_gcp_deploy_dispatches_native_all_and_does_not_invoke_aws(monkeypatch, tmp_path):
@@ -323,3 +326,97 @@ def test_empty_output_fix_does_not_mask_failed_or_malformed_aws_cli_calls(monkey
     monkeypatch.setattr(cloud.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=returncode, stdout=output, stderr=error))
     with pytest.raises(cloud.ControlUnavailable):
         cloud.Runner(tmp_path).aws(args(), "lambda", "get-function-concurrency", "--function-name", "ticketpilot-aws")
+
+
+@pytest.mark.parametrize("action", ["deploy", "resume"])
+def test_ordinary_aws_lifecycle_never_reads_initial_inventory_or_writes_tenant_data(monkeypatch, tmp_path, action):
+    save(tmp_path, "aws", paused=False)
+    runner = FakeRunner(tmp_path)
+    monkeypatch.setattr(cloud, "guard_other_provider", lambda *_: {"paused": True})
+    monkeypatch.setattr(cloud, "monitor_stop", lambda *_: {"stopped": True})
+    original_read = Path.read_text
+    def no_credentials_read(path, *a, **kw):
+        if path.name == "tenant-credentials.json":pytest.fail("Ordinary lifecycle read a private tenant password inventory")
+        return original_read(path, *a, **kw)
+    monkeypatch.setattr(Path, "read_text", no_credentials_read)
+    report = cloud.execute(runner, args("aws", action))
+    commands = [entry[0] for entry in runner.calls if isinstance(entry[0], list)]
+    assert len(commands) == 1 and commands[0][1].endswith("smoke_cloud.py")
+    assert commands[0][2:] == [AWS_URL, "--expected-storage=dynamodb"]
+    assert not any("validate_aws_deployment.py" in str(part) or "--credentials-file" == part for command in commands for part in command)
+    assert "no tenant credentials read" in report["acceptance"]["tenant_workflow"]
+
+
+def test_explicit_aws_workflow_runs_native_validator_with_selected_current_credentials(tmp_path):
+    save(tmp_path, "aws", paused=False)
+    runner = FakeRunner(tmp_path)
+    selected = tmp_path / "current-authorized-credentials.json"
+    options = args("aws", "resume", "--validate-tenant-workflow", "--credentials-file", str(selected))
+    result = cloud.aws_acceptance(runner, options)
+    commands = [entry[0] for entry in runner.calls]
+    assert len(commands) == 2
+    assert commands[0][1].endswith("smoke_cloud.py")
+    full = commands[1]
+    assert full[1].endswith("validate_aws_deployment.py")
+    assert full[full.index("--credentials-file") + 1] == str(selected)
+    assert full[full.index("--profile") + 1] == "ticketpilot"
+    assert full[full.index("--region") + 1] == "ap-southeast-1"
+    assert full[full.index("--url") + 1] == AWS_URL
+    assert result["tenant_workflow"].startswith("passed using operator-selected")
+    assert not any("provision" in str(part) or "tenant_accounts" in str(part) for command in commands for part in command)
+
+
+def test_explicit_aws_workflow_failure_is_not_reported_as_success(tmp_path):
+    save(tmp_path, "aws", paused=False)
+    runner = FakeRunner(tmp_path)
+    calls = []
+    def fail_full(command, **kwargs):
+        calls.append(command)
+        if command[1].endswith("validate_aws_deployment.py"):
+            raise cloud.CloudError("Fictional selected credentials no longer authorize this workflow")
+        return ""
+    runner.run = fail_full
+    with pytest.raises(cloud.CloudError, match="no longer authorize"):
+        cloud.aws_acceptance(runner, args("aws", "deploy", "--validate-tenant-workflow"))
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_paused_aws_deploy_skips_smoke_and_private_workflow(tmp_path, explicit):
+    save(tmp_path, "aws", paused=True)
+    runner = FakeRunner(tmp_path)
+    options = args("aws", "deploy", *(["--validate-tenant-workflow"] if explicit else []))
+    assert "skipped" in cloud.aws_acceptance(runner, options)
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize("stage", ["all", "deploy"])
+def test_gcp_native_deploy_forwards_private_flags_only_on_explicit_opt_in(tmp_path, stage):
+    selected = tmp_path / "current-authorized-credentials.json"
+    common = ["--project", "project-demo-123", "--credentials-file", str(selected)]
+    ordinary = cloud.native_command(tmp_path, "gcp", stage, args("gcp", "deploy", *common))
+    assert "--validate-tenant-workflow" not in ordinary and "--credentials-file" not in ordinary
+    explicit = cloud.native_command(tmp_path, "gcp", stage, args("gcp", "deploy", *common, "--validate-tenant-workflow"))
+    assert "--validate-tenant-workflow" in explicit
+    assert explicit[explicit.index("--credentials-file") + 1] == str(selected)
+
+
+@pytest.mark.parametrize("stage", ["pause", "resume", "preflight"])
+def test_gcp_other_native_stages_never_receive_private_credentials_flags(tmp_path, stage):
+    options = args("gcp", "deploy", "--project", "project-demo-123", "--validate-tenant-workflow")
+    command = cloud.native_command(tmp_path, "gcp", stage, options)
+    assert "--validate-tenant-workflow" not in command and "--credentials-file" not in command
+
+
+def test_unsupported_private_workflow_request_fails_before_cloud_or_docker_actions(tmp_path):
+    runner = FakeRunner(tmp_path)
+    for provider, action in (("gcp", "resume"), ("aws", "pause"), ("aws", "status")):
+        with pytest.raises(cloud.CloudError, match="validation"):
+            cloud.execute(runner, args(provider, action, "--validate-tenant-workflow"))
+    assert runner.calls == []
+
+
+def test_private_workflow_flag_defaults_to_no_private_validation():
+    options = args()
+    assert options.validate_tenant_workflow is False
+    assert options.credentials_file == cloud.ROOT / ".secrets/tenant-credentials.json"

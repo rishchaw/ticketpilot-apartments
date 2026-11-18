@@ -5,6 +5,7 @@ services:
     profiles: [local]
     environment:
       STORAGE_MODE: sqlite
+      TENANT_COOKIE_SECURE: "false"
       APARTMENT_NAME: ${APARTMENT_NAME:-Our Apartment}
       APARTMENT_UNITS: ${APARTMENT_UNITS:-1,2,3,4,5,6,7,8}
       SQLITE_PATH: /app/state/operations.db

@@ -115,6 +115,8 @@ def native_command(root, provider, stage, args):
             command += ["--local-image", args.local_image or "ticketpilot-gcp:local", "--budget-usd", str(args.budget_usd)]
             if args.billing_account:
                 command += ["--billing-account", args.billing_account]
+        if stage in ("all", "deploy") and getattr(args, "validate_tenant_workflow", False):
+            command += ["--validate-tenant-workflow", "--credentials-file", str(args.credentials_file)]
     return command
 
 
@@ -373,10 +375,20 @@ def aws_acceptance(runner, args):
     if context.get("paused"):
         return {"skipped": "Preserved paused deployment; no online acceptance was run"}
     url = valid_url("aws", context["url"])
+    # Routine deployment/resume must work after tenants privately change their
+    # passwords. It never opens the initial onboarding inventory or writes a
+    # concern unless the operator explicitly requests the private workflow.
+    runner.run([sys.executable, str(runner.root / "scripts/smoke_cloud.py"), url,
+                "--expected-storage=dynamodb"], timeout=180)
+    if not getattr(args, "validate_tenant_workflow", False):
+        return {"status": "passed", "scope": "Read-only AWS health and anonymous access-denial checks",
+                "tenant_workflow": "not requested; no tenant credentials read or tenant records written"}
     runner.run([sys.executable, str(runner.root / "scripts/validate_aws_deployment.py"),
                 "--url", url, "--table", "ticketpilot-aws-tickets", "--function", aws_native.FUNCTION,
-                "--profile", args.profile, "--region", REGIONS["aws"]], timeout=600)
-    return {"status": "passed", "scope": "AWS apartment acceptance and guarded synthetic cleanup"}
+                "--profile", args.profile, "--region", REGIONS["aws"],
+                "--credentials-file", str(args.credentials_file)], timeout=600)
+    return {"status": "passed", "scope": "Explicit AWS tenant workflow acceptance and guarded synthetic cleanup",
+            "tenant_workflow": "passed using operator-selected current authorized credentials"}
 
 
 def parser():
@@ -395,10 +407,19 @@ def parser():
     result.add_argument("--reserved-concurrency", choices=("auto", "-1", "1", "2"))
     result.add_argument("--confirm-other-offline", action="store_true",
                         help="Explicit operator attestation, permitted only with a recorded pause and fresh unavailable known URLs when control-plane reads are unavailable")
+    result.add_argument("--validate-tenant-workflow", action="store_true",
+                        help="Explicitly exercise private tenant writes using current authorized credentials; supported for AWS deploy/resume and GCP deploy only")
+    result.add_argument("--credentials-file", type=Path, default=ROOT / ".secrets/tenant-credentials.json",
+                        help="Private current tenant inventory for explicit workflow validation; ordinary deploy/resume never reads it")
     return result
 
 
 def execute(runner, args):
+    if getattr(args, "validate_tenant_workflow", False):
+        if args.action not in ("deploy", "resume"):
+            raise CloudError("Private tenant workflow validation is supported only during deploy/resume")
+        if args.provider == "gcp" and args.action != "deploy":
+            raise CloudError("GCP private tenant workflow validation requires deploy; resume performs read-only checks")
     if args.provider == "gcp" and args.action not in ("monitor-stop",):
         context = context_for(runner.root, "gcp")
         if context:
@@ -440,7 +461,8 @@ def execute(runner, args):
         if args.action == "deploy" and not args.skip_build:
             local_check = build_validate_gcp(runner, args)
         runner.native("gcp", "all" if args.action == "deploy" else "resume", args)
-        acceptance = {"scope": "GCP native deployment acceptance", "local_validation": local_check or "Explicit --skip-build: supplied prevalidated image"} if args.action == "deploy" else {"scope": "Native GCP resume health verification"}
+        acceptance = {"scope": "GCP native deployment checks", "local_validation": local_check or "Explicit --skip-build: supplied prevalidated image",
+                      "tenant_workflow": "explicitly requested from native helper" if args.validate_tenant_workflow else "not requested; read-only cloud smoke"} if args.action == "deploy" else {"scope": "Native GCP resume health and read-only access verification"}
     return {"provider": args.provider, "action": args.action, "other_provider_guard": proof,
             "acceptance": acceptance, "monitoring": "stopped; opt in using monitor-start"}
 
