@@ -1,3 +1,15 @@
+# Current validation - November 19, 2026
+
+The current local regression passed **435 tests**. Hosted [CI run44350751049](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44350751049) passed all five jobs for source commit `ff6633632bbfbe6e636612020a45697d3a5006f2`: application tests/mobile browser, Docker/Prometheus/Grafana/Lambda emulator, GCP container/real Firestore emulator, isolated kind/monitoring and all four Terraform roots. No cloud account credentials were used by CI.
+
+The Windows launcher also passed `--check` from an unrelated folder, with cloud and Docker-engine contact both false. The source allowlist audit reviewed161files with zero matches for the eight initial tenant passwords and private local environment secrets. Real tenant inventories, handouts, state/plans and detailed reports remain excluded.
+
+AWS's authenticated image and eight unit accounts are provisioned while compute remains paused. GCP still retains its paused pre-authentication image; these source/CI checks do not claim it was upgraded or that hosted tenant sign-in was exercised while paused. Bedrock remains disabled; generation safety/citation tests use mocks rather than paid model calls. See [deployment status](DEPLOYMENT_STATUS.md), [controls](OPERATIONS_QUICKSTART.md) and [RAG scope](RAG_IMPLEMENTATION.md).
+
+Earlier dated records below are historical.
+
+---
+
 # Apartment validation - November 11, 2026
 
 - **40 Python tests passed**: the original 26 tests plus 14 parameterized apartment workflow tests across SQLite and in-process DynamoDB emulation. Tenant key isolation, private-note exclusion, stale/future version rejection, replies/reopening, manager-controlled notices, multi-unit suggestions, input validation, process-local rate limiting and original-demo separation passed.

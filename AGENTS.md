@@ -2,7 +2,7 @@
 
 Use TICKETPILOT.cmd and docs/OPERATIONS_QUICKSTART.md for explicit provider Start/Stop/Status/Update and local tools. Menu startup and --check must not contact providers or Docker. Keep both clouds and real local services paused under the current stop request. GCP still needs its explicit authenticated-image Prepare workflow with --leave-paused and separate native account provisioning before Start is permitted. Do not bypass release/account guards or reset tenant passwords during lifecycle operations.
 
-Local regression passed435tests. First tenant-auth hosted run44317754504 passed4jobs but failed its single-environment Lambda emulator invocation; the harness correction and actual image acceptance passed locally. New hosted verification remains pending; read the current Actions result before claiming it green. See docs/DEPLOYMENT_STATUS.md. The RAG guide documents IT-demo retrieval/optional generation versus the apartment portal's fixed bilingual guidance; do not claim building-document RAG or enable paid AI automatically.
+Local regression passed 435 tests. Hosted CI run44350751049 passed all five jobs for source commitff6633632bbfbe6e636612020a45697d3a5006f2, including the corrected real Lambda emulator, browser, Firestore, kind and Terraform checks. First tenant-auth run44317754504 is a historical four-pass/one-failure run; the corrected harness preserves primary failures and serializes its one RIE execution environment. See docs/DEPLOYMENT_STATUS.md. The RAG guide documents IT-demo retrieval/optional generation versus the apartment portal's fixed bilingual guidance; do not claim building-document RAG or enable paid AI automatically.
 
 # Tenant login rollout and AWS pause - November 18, 2026
 
