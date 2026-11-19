@@ -319,7 +319,14 @@ def verify_service_state(args, paused, url):
     observations = []
     with httpx.Client(timeout=20, trust_env=False, follow_redirects=False) as client:
         for address in sorted(urls):
-            response = client.get(address.rstrip("/") + "/health")
+            for attempt in range(3):
+                try:
+                    response = client.get(address.rstrip("/") + "/health")
+                    break
+                except httpx.TransportError as error:
+                    if attempt == 2:
+                        raise RuntimeError("Service health transport failed after three attempts; check status before retrying the operation.") from error
+                    time.sleep(2 * (attempt + 1))
             if paused and response.status_code not in (404, 503):
                 raise RuntimeError("A service URL still responds while paused.")
             if not paused and (response.status_code != 200 or response.json().get("storage_mode") != "firestore"):

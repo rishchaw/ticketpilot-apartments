@@ -518,6 +518,8 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     try:
         raise SystemExit(main())
     except (CloudError, aws_native.DeploymentError, OSError, subprocess.SubprocessError, ValueError, KeyError) as error:

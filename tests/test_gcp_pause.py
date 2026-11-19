@@ -115,3 +115,33 @@ def test_existing_state_without_generated_settings_cannot_accidentally_resume(lo
     args = SimpleNamespace(project="project-demo-123", region="asia-southeast1")
     with pytest.raises(RuntimeError, match="Restore"):
         deploy.app_settings(args)
+
+
+@pytest.mark.parametrize("failures", [1, 3])
+def test_service_health_retries_transport_failure_without_false_success(local, monkeypatch, failures):
+    import httpx
+    calls = []
+    monkeypatch.setattr(deploy, "cloud", lambda *args, **kwargs: {
+        "metadata": {"annotations": {"run.googleapis.com/scalingMode": "automatic"}},
+        "status": {"traffic": []},
+    })
+    monkeypatch.setattr(deploy.time, "sleep", lambda _: None)
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) <= failures:
+            raise httpx.ReadTimeout("fixture transport timeout", request=request)
+        return httpx.Response(200, json={"storage_mode": "firestore"})
+
+    client_class = httpx.Client
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: client_class(
+        **kwargs, transport=httpx.MockTransport(handler)))
+    args = SimpleNamespace(region="asia-southeast1")
+    if failures == 3:
+        with pytest.raises(RuntimeError, match="after three attempts"):
+            deploy.verify_service_state(args, False, "https://example.run.app")
+        assert not (local / ".tools/gcp-service-state.json").exists()
+    else:
+        report = deploy.verify_service_state(args, False, "https://example.run.app")
+        assert report["verified_urls"][0]["health_http_status"] == 200
+    assert len(calls) == min(failures + 1, 3)
