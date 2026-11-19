@@ -14,6 +14,8 @@ During this run Prepare applied the image before a Windows output-encoding error
 
 The deployed app code matches the earlier tested application source. The benchmark and operational fixes are in source commit `84e1497` and run on the operator PC. They change the deployment tools. The Cloud Run image digest in the report identifies the hosted application.
 
+Final status checks also encountered intermittent transport failures. Independent system HTTPS checks confirmed health200 at both URLs. The central status/guard path now retries transport failures up to three times and still requires actual endpoint evidence after retry exhaustion.
+
 For later code updates use `.\TICKETPILOT.cmd gcp redeploy`. For a temporary offline period use `.\TICKETPILOT.cmd gcp stop`. Routine lifecycle operations reuse the eight accounts.
 
 ## GCP baseline

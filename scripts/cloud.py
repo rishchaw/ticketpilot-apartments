@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from types import SimpleNamespace
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -195,10 +196,14 @@ def public_observations(provider, urls, *, offline):
     expected = {404, 429} if provider == "aws" else {404, 503}
     with httpx.Client(timeout=20, trust_env=False, follow_redirects=False) as client:
         for address in sorted(urls):
-            try:
-                response = client.get(valid_url(provider, address) + "/health")
-            except httpx.HTTPError as error:
-                raise CloudError("Network/TLS/DNS failure is not proof that the other provider is offline") from error
+            for attempt in range(3):
+                try:
+                    response = client.get(valid_url(provider, address) + "/health")
+                    break
+                except httpx.HTTPError as error:
+                    if attempt == 2:
+                        raise CloudError("Network/TLS/DNS failure after three attempts is not proof that the provider is offline") from error
+                    time.sleep(2 * (attempt + 1))
             observations.append({"url": address, "health_http_status": response.status_code})
             if offline and response.status_code not in expected:
                 raise CloudError("A known URL did not show the expected paused/unavailable response")

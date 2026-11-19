@@ -10,7 +10,7 @@ Live acceptance passed sign-in, anonymous denial, fixed units, cross-account tra
 
 The initial Prepare applied successfully but hit a Windows Unicode output error before provisioning. State was inspected before continuing. UTF-8 output was fixed, accounts were provisioned, and Start was run. Its first health read timed out after the scaling change. Fresh status and HTTPS health checks confirmed availability. Bounded transport retries were added, and a repeated Start completed with a no-change Terraform plan, both URL checks and read-only route acceptance.
 
-All 451 local tests passed. The GCP benchmark used 20 measured requests per endpoint after warmups. Its results and reproducible later AWS method are in [cloud benchmarks](CLOUD_BENCHMARKS.md). AWS stayed paused throughout. Local Compose monitoring and kind remain stopped.
+All 453 local tests passed. The GCP benchmark used 20 measured requests per endpoint after warmups. Its results and reproducible later AWS method are in [cloud benchmarks](CLOUD_BENCHMARKS.md). AWS stayed paused throughout. Local Compose monitoring and kind remain stopped.
 
 Earlier checkpoints follow.
 

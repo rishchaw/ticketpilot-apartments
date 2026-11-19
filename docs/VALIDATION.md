@@ -1,6 +1,6 @@
 # Live GCP validation, November 19, 2026
 
-All 451 local tests passed after the GCP transport-retry, Windows output and benchmark changes. The authenticated GCP image passed real Firestore emulator checks and live tenant/manager acceptance. Independent Firestore reads and guarded cleanup confirmed both synthetic records. Both service URLs returned HTTP 200 while AWS remained paused. [Deployment evidence](DEPLOYMENT_STATUS.md) · [Benchmark results](CLOUD_BENCHMARKS.md)
+All 453 local tests passed after the GCP transport-retry, Windows output and benchmark changes. The authenticated GCP image passed real Firestore emulator checks and live tenant/manager acceptance. Independent Firestore reads and guarded cleanup confirmed both synthetic records. Both service URLs returned HTTP 200 while AWS remained paused. [Deployment evidence](DEPLOYMENT_STATUS.md) · [Benchmark results](CLOUD_BENCHMARKS.md)
 
 ---
 
