@@ -31,43 +31,15 @@ Tenant-chosen passwords are not copied back to the operator's local inventory. T
 
 The login page, static assets, `/health` and the separate `/demo` remain reachable for their intended purposes. They do not grant access to tenant configuration, building notices, concerns or replies. Manager APIs retain their separate owner access code; tenant cookies do not grant a manager role.
 
-## Operator commands: AWS
+## Manage a cloud account
 
-PowerShell commands must run from the standalone project root. The Python prefix has one backslash after the dot: `.\.venv`, not a doubled backslash.
+Existing AWS accounts survive Start, Stop and Redeploy. Sign in through the provider menu and run the account helper from the project folder only for the specific administrative task required. The wrapper checks the selected deployment and backend before writing.
 
-```powershell
-Set-Location -LiteralPath 'C:\Users\rish\Documents\DLSU College - New PC\Job Application\!RESUMES\Beyond Application\ticketpilot-ai\ticketpilot-aws'
-.\.venv\Scripts\python.exe --version
-$env:AWS_PROFILE = 'ticketpilot'
-$env:AWS_REGION = 'ap-southeast-1'
-$env:STORAGE_MODE = 'dynamodb'
-$env:DYNAMODB_TABLE = 'ticketpilot-aws-tickets'
-```
-
-These SDK operations require a valid browser-authenticated AWS profile and write to the selected persistent table. Verify the profile/table before changing accounts. Do not create long-lived keys or upgrade a cloud plan to resolve an authentication error.
-
-Initial provisioning is explicit and preserves a matching existing inventory:
-
-```powershell
-.\.venv\Scripts\python.exe -m ticketpilot.tenant_accounts provision --credentials-file .secrets/tenant-credentials.json --units '1A,1B,2A,2B,2C,3A,3B,3C'
-```
-
-The CLI writes random initial passwords privately and prints only safe operation metadata. `generate` creates/validates a local inventory without writing the database. `provision` applies the eight accounts and their registry to the configured backend. The internal `apply --credentials-stdin` action accepts the same inventory over standard input for isolated container validation; do not pipe secret contents to a display/logging command.
-
-Reset one existing account when needed:
-
-```powershell
-.\.venv\Scripts\python.exe -m ticketpilot.tenant_accounts reset --credentials-file .secrets/tenant-credentials.json --username unit-1a
-```
-
-The generated replacement password is saved privately; it is not printed. Reset preserves the immutable tenant identity and invalidates all previous sessions. An interrupted reset preserves a private `.reset-pending.json` recovery file. Retry the same selected reset with the original inventory; do not delete pending files or substitute another account to bypass a mismatch. Existing tenant-selected passwords are not needed for an operator reset.
-
-Disable or re-enable the same verified resident's account:
-
-```powershell
-.\.venv\Scripts\python.exe -m ticketpilot.tenant_accounts disable --credentials-file .secrets/tenant-credentials.json --username unit-1a
-.\.venv\Scripts\python.exe -m ticketpilot.tenant_accounts enable --credentials-file .secrets/tenant-credentials.json --username unit-1a
-```
+| Task | Command |
+| --- | --- |
+| Provision or verify the AWS registry using its matching private inventory | `.\.venv\Scripts\python.exe scripts/manage_tenants.py aws provision` |
+| Reset one AWS account after verifying the resident | `.\.venv\Scripts\python.exe scripts/manage_tenants.py aws reset --username unit-1a` |
+| Disable or re-enable that account | `.\.venv\Scripts\python.exe scripts/manage_tenants.py aws disable --username unit-1a` or the same command with `enable` |
 
 A state change bumps the credential version, so disabling and later re-enabling does not restore old sessions. These are alternative administrative operations; do not run them merely to test a real resident's access. Tenant turnover requires a reviewed replacement identity and record-assignment decision. Do not hand a departed resident's reset account to a new resident, because the immutable identity owns its historical concerns.
 
@@ -77,7 +49,19 @@ The same authentication modules use a separate SQLite table locally, private Dyn
 
 Use a separate private inventory for each environment, such as `.secrets/gcp-tenant-credentials.json` for an intentionally configured GCP deployment and `.secrets/local-tenant-credentials.json` for local development. Account/session data is not replicated or migrated when switching providers. Local browser, Lambda emulator, Firestore emulator and kind validation generate isolated fictional accounts instead of reading the AWS inventory.
 
-A future GCP onboarding operation requires renewed CLI/ADC access and the selected existing project/database. Configure `STORAGE_MODE=firestore`, `GOOGLE_CLOUD_PROJECT=YOUR-GCP-PROJECT-ID` and `FIRESTORE_DATABASE=(default)`, then use the same `provision` command with its separate GCP credentials file and the confirmed eight-unit list. Install `requirements-gcp.txt` locally. This is not an instruction to resume the paused GCP service now.
+Choose **GCP controls → Prepare first tenant-login deployment**. It deploys the protected release while paused and runs `scripts/manage_tenants.py gcp provision`. GCP uses `.secrets/gcp-tenant-credentials.json`. Subsequent GCP account administration uses `gcp` in the same wrapper. [Provider controls](OPERATIONS_QUICKSTART.md)
+
+## First login for the local Docker app
+
+For a new local SQLite demo, set `APARTMENT_UNITS=1A,1B,2A,2B,2C,3A,3B,3C` in the private `.env` before starting the app. From the project folder run the following PowerShell commands. The inventory stays on this PC. The last command passes it directly to the app container.
+
+```powershell
+.\TICKETPILOT.cmd local app-start
+.\.venv\Scripts\python.exe -m ticketpilot.tenant_accounts generate --units "1A,1B,2A,2B,2C,3A,3B,3C" --credentials-file .secrets/local-tenant-credentials.json
+Get-Content -Raw -LiteralPath .secrets/local-tenant-credentials.json | docker compose -p ticketpilot-aws --profile local exec -T app python -m ticketpilot.tenant_accounts apply --credentials-stdin
+```
+
+Open **Dashboards → Local tenant portal** and sign in with one unit from the local inventory. For an existing SQLite demo, reuse its original settings, volume and credentials. Stop, Start and Rebuild preserve that volume.
 
 ## Session and access controls
 

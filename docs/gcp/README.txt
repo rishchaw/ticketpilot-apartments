@@ -3,6 +3,20 @@ TICKETPILOT APARTMENTS - GCP
 Checkpoint: November 18, 2026 (Asia/Manila).
 Run commands from the standalone ticketpilot-aws repository root.
 
+BEGINNER REDEPLOY
+1. In ticketpilot-aws double-click TICKETPILOT.cmd. Open Docker Desktop from Local.
+2. Under GCP controls choose Sign in through browser. Complete both Google
+   sign-ins. Keep AWS paused when switching to GCP.
+3. For the retained older revision choose Prepare first tenant-login deployment.
+   It builds and validates the new image, applies Terraform while paused, and
+   provisions eight separate GCP accounts. Wait for both steps to succeed.
+4. For later code changes use Redeploy current code. Check status. Choose Start
+   existing portal when ready to serve and verify HTTP 200. Open the tenant portal.
+5. Choose Start local Prometheus/Grafana to scrape this provider. Finish with Stop
+   portal and cloud scrapes. The retained paused Cloud Run URLs normally return 503.
+
+Full walkthrough: docs/OPERATIONS_QUICKSTART.md. Code map: docs/CODEBASE_USAGE.md.
+
 RECORDED STATUS AND RETAINED URLS
 --------------------------------
 The retained Cloud Run/Firestore deployment was accepted on November 16 and then

@@ -3,6 +3,19 @@ TICKETPILOT APARTMENTS - AWS
 Checkpoint: November 18, 2026 (Asia/Manila).
 Run commands from the standalone ticketpilot-aws repository root.
 
+BEGINNER REDEPLOY
+1. In ticketpilot-aws double-click TICKETPILOT.cmd. Open Docker Desktop from Local.
+2. Under AWS controls, sign in with ticketpilot if needed. Check that GCP is paused.
+3. To publish changed code choose Redeploy current code. It builds the image and
+   applies Terraform. To bring back the already deployed release, skip Redeploy.
+4. Check status. When ready to serve tenants, choose Start existing portal and
+   check for HTTP 200. Open tenant portal or manager dashboard from the same menu.
+5. For charts choose Start local Prometheus/Grafana. Under Dashboards open
+   Prometheus targets or Grafana. Use Stop portal and cloud scrapes after the demo.
+   An intentionally paused Lambda returns HTTP 429.
+
+Full walkthrough: docs/OPERATIONS_QUICKSTART.md. Code map: docs/CODEBASE_USAGE.md.
+
 STATUS
 ------
 The authenticated tenant release (digest prefix 722722a0) is deployed in AWS
@@ -30,7 +43,7 @@ sessions and revocation use private rows in the existing DynamoDB table. No
 additional hosted identity service is added. Terraform: infra/bootstrap and infra/aws.
 One modular FastAPI domain/UI is shared with GCP; its Lambda runtime wrapper,
 SDK adapters, identities and Terraform remain native to AWS. AI stays off;
-optional Bedrock code is preserved for a deliberate later experiment.
+a November 19 live Bedrock request returned a verification-related 403 and the app used its cited fallback.
 Diagrams/rationale: docs/ARCHITECTURE_AWS.md and docs/CLOUD_PORTABILITY.md.
 
 PREPARE AUTHENTICATION AND TOOLS
@@ -60,8 +73,11 @@ The final interface is provider first, action second:
   .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
   .\.venv\Scripts\python.exe scripts/cloud.py aws resume --profile ticketpilot
 
-Deploy builds unless --skip-build is supplied, then runs native bootstrap/deploy
-and apartment acceptance. Native helper: scripts/deploy_aws.py, stages preflight,
+Deploy runs the AWS bootstrap and application stages. It builds the image unless
+--skip-build is supplied. On an enabled site, normal acceptance checks health
+and anonymous access. A paused site skips online acceptance. Testing a complete
+tenant submission requires explicit --validate-tenant-workflow and a current
+private credentials file. The native scripts/deploy_aws.py stages are preflight,
 bootstrap, deploy, pause, resume, status. The old PowerShell entry remains legacy;
 use the central/native Python paths for the streamlined lifecycle.
 

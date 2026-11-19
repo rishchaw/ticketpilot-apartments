@@ -1,10 +1,22 @@
+# Operator review, November 19, 2026
+
+The Windows launcher verified the Singapore AWS portal was paused (HTTP 429). Docker reported the app, Prometheus and Grafana containers exited. The local kind demo reported stopped. GCP's authenticated Cloud Run read required a new browser sign-in, so its current control-plane state is unknown. Its last recorded paused URLs returned HTTP 503. AWS has the eight-unit authenticated release. The retained GCP revision requires the Prepare workflow. [Beginner guide](OPERATIONS_QUICKSTART.md) and [codebase review](CODEBASE_USAGE.md).
+
+The local regression suite passed 445 tests. The launcher also passed its offline tool check. These were operator checks and local tests. Both cloud releases were left as found.
+
+The live Bedrock trial used the owner API on the PC with a temporary SQLite database. Nova Micro availability succeeded in Sydney. Converse returned a verification-related HTTP 403 and the app returned its cited fallback. The portal deployment was not involved.
+
+Earlier dated entries below record conditions at the time of each check.
+
+---
+
 # Controls and RAG documentation - November 19, 2026
 
 TICKETPILOT.cmd now opens an explicit start/stop/status menu for the separate AWS and GCP deployments, optional local monitoring, Docker status and isolated kind demonstration. Start resumes an existing deployment; Update builds/deploys explicitly. Opening the menu and --check contact neither cloud nor Docker. The launcher also passed --check from an unrelated working directory. See docs/OPERATIONS_QUICKSTART.md.
 
 AWS retains the authenticated image and eight native unit accounts described below, with concurrency zero. GCP retains its paused pre-authentication revision and requires the explicit Prepare workflow before Start; that workflow deploys the authenticated image with --leave-paused and provisions a separate account inventory. No provider was resumed or upgraded during this documentation/control work. Private handouts remain under .secrets/tenant-logins/.
 
-The full current local regression passed 435 tests. The first tenant-authentication hosted run (44317754504, source b2c49bb) passed application/browser, Firestore emulator, Kubernetes and Terraform jobs; its Lambda-emulator step failed. The standalone RIE validation transport now serializes invocations to its single execution environment, and cleanup failures preserve the primary error. The corrected real Lambda-image acceptance and 15 focused helper tests passed locally. Hosted [CI run44350751049](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44350751049) passed all five jobs for source commitff6633632bbfbe6e636612020a45697d3a5006f2: application/browser, Docker/monitoring/Lambda, GCP/Firestore emulator, local kind/monitoring and Terraform. The earlier run remains a historical failure; the corrected source is green.
+The previous local regression passed 435 tests. The first tenant-authentication hosted run (44317754504, source b2c49bb) passed application/browser, Firestore emulator, Kubernetes and Terraform jobs; its Lambda-emulator step failed. The standalone RIE validation transport now serializes invocations to its single execution environment, and cleanup failures preserve the primary error. The corrected real Lambda-image acceptance and 15 focused helper tests passed locally. Hosted [CI run44350751049](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44350751049) passed all five jobs for source commitff6633632bbfbe6e636612020a45697d3a5006f2: application/browser, Docker/monitoring/Lambda, GCP/Firestore emulator, local kind/monitoring and Terraform. The earlier run remains a historical failure; the corrected source is green.
 
 The RAG implementation is documented in docs/RAG_IMPLEMENTATION.md: packaged TF-IDF retrieval plus optional owner-requested Bedrock generation for the original IT demo. Paid generation remains disabled. Apartment submissions use fixed bilingual category guidance and do not currently query property documents or call a model.
 

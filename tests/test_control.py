@@ -318,3 +318,68 @@ def test_docker_status_is_read_only_and_scoped_to_ticketpilot(project,monkeypatc
     command=runner.calls[0][0]
     assert command[:3]==["docker","ps","-a"] and "label=com.docker.compose.project=ticketpilot-aws" in command
     assert not opened and not started
+
+
+@pytest.mark.parametrize("provider", ["aws", "gcp"])
+def test_redeploy_builds_without_resuming(project, provider):
+    c, runner, *_ = make(project)
+    assert control.main([provider, "redeploy"], c) == 0
+    assert [call[0][2:4] for call in runner.calls] == [[provider, "deploy"]]
+
+
+def test_monitoring_local_after_cloud_targets_local_config(project, monkeypatch):
+    (project / ".env").touch()
+    (project / ".secrets").mkdir()
+    (project / ".secrets/metrics-token").touch()
+    monkeypatch.setenv("PROMETHEUS_CONFIG", "./monitoring/prometheus/cloud.yml")
+    monkeypatch.setattr(control.shutil, "which", lambda _: "docker")
+    c, runner, *_ = make(project)
+    assert control.main(["local", "monitor-start"], c) == 0
+    command, options = runner.calls[0]
+    assert command[command.index("up"):] == ["up", "-d", "--no-deps", "--force-recreate", "prometheus", "grafana"]
+    assert options["env"]["PROMETHEUS_CONFIG"] == "./monitoring/prometheus/local.yml"
+
+
+@pytest.mark.parametrize("action,expected", [("app-start", ["up", "-d", "--no-deps", "app"]),
+    ("app-rebuild", ["up", "-d", "--build", "--no-deps", "app"]), ("app-stop", ["stop", "app"]),
+    ("monitor-stop", ["stop", "prometheus", "grafana"])])
+def test_compose_actions_are_scoped_and_keep_volumes(project, monkeypatch, action, expected):
+    if action != "app-stop" and action != "monitor-stop":
+        (project / ".env").touch()
+    monkeypatch.setattr(control.shutil, "which", lambda _: "docker")
+    c, runner, *_ = make(project)
+    assert control.main(["local", action], c) == 0
+    command, _ = runner.calls[0]
+    assert command == ["docker", "compose", "-p", "ticketpilot-aws", "-f", str(project.resolve() / "compose.yaml"), "--profile", "local", *expected]
+
+
+def test_overview_reports_cloud_failure_and_continues_to_local_services(project, monkeypatch):
+    monkeypatch.setattr(control.shutil, "which", lambda _: "docker")
+    aws = json.dumps({"paused": True, "health_verified": True, "health_http_status": 429})
+    c, runner, opened, _, output = make(project, results=[
+        result(output=aws), result(code=1), result(output="app Exited"), result(output='{"phase":"stopped"}')])
+    assert control.main(["overview"], c) == 1
+    report = "\n".join(output)
+    for message in ("AWS portal: paused | HTTP 429", "GCP portal: unknown", "app Exited", "Local Kubernetes: stopped"):
+        assert message in report
+    assert not opened and len(runner.calls) == 4
+
+
+def test_overview_recognizes_absent_aws_and_verified_gcp(project, monkeypatch):
+    monkeypatch.setattr(control.shutil, "which", lambda _: "docker")
+    gcp = {"paused": False, "verified_urls": [{"health_http_status": 200}]}
+    c, _, _, _, output = make(project, results=[
+        result(output='{"deployed":false}'), result(output=json.dumps(gcp)),
+        result(), result(output='{"phase":"not_prepared"}')])
+    assert control.main(["overview"], c) == 0
+    assert any("Lambda function was not found" in line for line in output)
+    assert any("GCP portal: enabled | HTTP 200" in line for line in output)
+
+
+def test_aws_status_stdout_is_a_single_json_document(project, monkeypatch, capsys):
+    from scripts import cloud
+    runner = cloud.Runner(project)
+    monkeypatch.setattr(cloud, "native_command", lambda *args: ["aws-status"])
+    monkeypatch.setattr(runner, "run", lambda _: '{"paused":true}')
+    assert json.loads(runner.native("aws", "status", None)) == {"paused": True}
+    assert capsys.readouterr().out == ""

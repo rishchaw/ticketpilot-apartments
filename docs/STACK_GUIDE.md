@@ -1,5 +1,7 @@
 # How the project uses the deployment stack
 
+Use the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) for the menu steps. For the modules, storage adapters, image contents and development-only files behind each service, consult the [codebase usage review](CODEBASE_USAGE.md).
+
 TicketPilot is one modular application. Its tenant, manager and retrieval modules share a release. Managed cloud services provide separate compute, storage, identity, images and telemetry. Calling each application module a deployed microservice would overstate this design; eight units do not justify independent services and queues yet.
 
 | Technology | What it does here | Where to inspect it |
@@ -34,7 +36,7 @@ The existing PC environment and private .env should be preserved. setup_local.py
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
 ```
 
-For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follow [provider operations](PROVIDER_OPERATIONS.md) before switching. Default deploy builds/validates the selected image; optional monitoring starts separately. Current AWS is live and GCP is paused. Provider switching preserves independent datasets; it does not migrate concerns or their tracking links.
+For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follow [provider operations](PROVIDER_OPERATIONS.md) before switching. Default deploy builds/validates the selected image; optional monitoring starts separately. Both recorded sites were paused. GCP Prepare upgrades the older revision and provisions its accounts. Provider switching preserves independent datasets; it does not migrate concerns or their tracking links.
 
 ## Use Prometheus and Grafana
 
@@ -66,4 +68,4 @@ The cloud application's counters belong to individual process/container lifetime
 
 The helper uses a project-owned kind cluster, private kubeconfig, isolated credentials and fictional SQLite data. Stop deletes only that verified demo cluster/PVC. It does not deploy EKS/GKE or migrate native cloud records. See [Kubernetes setup and forwarding](KUBERNETES.md) for required kind/kubectl versions and exact validator options. Hosted CI already exercised this demo; do not claim the earlier interrupted PC attempt passed.
 
-CPU classification and local retrieved guidance remain enabled without hosted AI charges. Optional Bedrock generation is preserved, disabled by default. Real building procedures, tenant onboarding, backups and data retention need deliberate review before using real tenant data.
+The IT demo performs CPU classification and local retrieval. The apartment workflow selects bilingual guidance by category. Optional Bedrock generation is preserved, disabled by default. Real building procedures, tenant onboarding, backups and data retention need deliberate review before using real tenant data.

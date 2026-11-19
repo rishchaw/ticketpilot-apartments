@@ -1,6 +1,6 @@
 # Cloud portability and deployment choices
 
-Verified November 17, 2026 (Asia/Manila). AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled. See [deployment evidence](DEPLOYMENT_STATUS.md).
+The portable application runs on each provider using its own data and credentials. The last recorded states were AWS paused on the tenant-login release and GCP paused on its earlier revision. For a switch to GCP complete **Prepare first tenant-login deployment** before Start. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
 
 ## One application, native cloud adapters
 
@@ -52,6 +52,6 @@ Cloud Run is request-based with automatic min0/max1 when enabled and manual0 whe
 
 USD 10/month is an alert target, not a hard cap. Check the reported AWS USD 100 credit and GCP trial balance/expiry independently. Storage, logs, secret accesses, traffic and optional monitoring requests can consume credit while resources remain. No plan upgrades or capacity commitments are automatic.
 
-Paid AI stays off. CPU inference and local retrieval exercise the ML workflow without a hosted embedding, GPU or vector database. Optional Bedrock generation remains preserved for a deliberate later experiment.
+Paid AI stays off. CPU inference and local retrieval exercise the ML workflow without a hosted embedding, GPU or vector database. The November 19 Bedrock request reached Nova Micro in Sydney and received a verification-related 403. The IT demo returned its cited fallback. [RAG test result](RAG_IMPLEMENTATION.md)
 
 Local kind demonstrates Deployments, Services, ConfigMaps/Secrets, probes, limits, PVCs and observability without GKE/EKS. Hosted CI acceptance proves the runner's local demonstration, not a hosted cloud cluster or the interrupted PC run. See [Kubernetes](KUBERNETES.md) and [CI/CD](CI_CD.md).

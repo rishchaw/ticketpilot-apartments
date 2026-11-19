@@ -1,6 +1,8 @@
 # Current validation - November 19, 2026
 
-The current local regression passed **435 tests**. Hosted [CI run44350751049](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44350751049) passed all five jobs for source commit `ff6633632bbfbe6e636612020a45697d3a5006f2`: application tests/mobile browser, Docker/Prometheus/Grafana/Lambda emulator, GCP container/real Firestore emulator, isolated kind/monitoring and all four Terraform roots. No cloud account credentials were used by CI.
+Use **Check all service statuses (live)** for current availability. CI verifies the app and disposable stacks. A local call trace exercised a fictional tenant login and concern creation and a separate IT demo analysis request. The specific modules are listed in [the code review](CODEBASE_USAGE.md#observed-locally). A live Bedrock attempt returned HTTP 403 during AWS account verification and exercised the cited fallback. [Controls](OPERATIONS_QUICKSTART.md) · [Bedrock result](RAG_IMPLEMENTATION.md)
+
+The November 19 guide and service-control update passed **445 local tests**, including the launcher and status regressions. The earlier tenant-controls regression passed **435 tests**. Hosted [CI run44350751049](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44350751049) passed all five jobs for source commit `ff6633632bbfbe6e636612020a45697d3a5006f2`: application tests/mobile browser, Docker/Prometheus/Grafana/Lambda emulator, GCP container/real Firestore emulator, isolated kind/monitoring and all four Terraform roots. No cloud account credentials were used by CI.
 
 The Windows launcher also passed `--check` from an unrelated folder, with cloud and Docker-engine contact both false. The source allowlist audit reviewed161files with zero matches for the eight initial tenant passwords and private local environment secrets. Real tenant inventories, handouts, state/plans and detailed reports remain excluded.
 
@@ -36,11 +38,11 @@ All checks below ran on the user's local Windows PC, not in an AWS account.
 - Prometheus successfully authenticates to `/metrics`; the target is up. Grafana loads its ten-panel dashboard and reports its Prometheus datasource healthy.
 - The Lambda image builds using Python 3.12 / Amazon Linux 2023 and binary wheels. The local emulator passes health, website, real inference/retrieval, anonymous access denial and owner create/resolve/delete with a read-only root filesystem and temporary state in `/tmp`. Its temporary container is stopped and removed afterward.
 
-## Repeat the local integration checks
+## Repeat the local integration checks on a disposable fictional Compose stack
 
 ```powershell
 docker compose --profile local up --build -d
-.\.venv\Scripts\python.exe scripts/validate_local_stack.py --restart-app
+.\.venv\Scripts\python.exe scripts/validate_local_stack.py --restart-app --seed-demo-tenants
 docker buildx build --platform linux/amd64 --provenance=false --load -f Dockerfile.lambda -t ticketpilot-aws-lambda:local .
 .\.venv\Scripts\python.exe scripts/validate_lambda_image.py
 ```

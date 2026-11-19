@@ -1,10 +1,12 @@
 # Deploy TicketPilot to Google Cloud
 
+For this existing project use **GCP controls → Sign in through browser → Prepare first tenant-login deployment**. Wait for account provisioning to finish before Start. Subsequent releases use **Redeploy current code**. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md). The lower-level commands below are for operators inspecting the individual stages.
+
 The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
 
 ## Shared lifecycle entry point
 
-For streamlined deployment, use `python scripts/cloud.py gcp deploy --project YOUR-GCP-PROJECT-ID` from the repository root. It builds `Dockerfile.gcp`, runs the pinned real Firestore emulator validation and promotes the same validated local image ID before native `all`. No separate prebuild is required by default. `--skip-build --local-image YOUR-LOCAL-IMAGE-TAG` explicitly reuses a prevalidated image and skips that local emulator check. The native helper instructions below remain the provider-specific/manual path.
+For streamlined deployment, use `python scripts/cloud.py gcp deploy --project YOUR-GCP-PROJECT-ID` from the repository root. It builds `Dockerfile.gcp`, runs the pinned real Firestore emulator validation and promotes the same validated local image ID before native `all`. No separate prebuild is required by default. `--skip-build --local-image YOUR-LOCAL-IMAGE-TAG` explicitly reuses a prevalidated image and skips that local emulator check. Use the launcher for day-to-day changes. The native stages below explain what it calls internally. Calling them directly bypasses the central check that the other provider is offline.
 
 See [provider operations](PROVIDER_OPERATIONS.md), [GCP architecture](ARCHITECTURE_GCP.md), [AWS architecture](ARCHITECTURE_AWS.md) and [portability](CLOUD_PORTABILITY.md) for exclusive pause/resume, native monitoring and data/state boundaries. The stop wrapper now stops local workloads and independently pauses both recorded providers by default. Use --provider aws or --provider gcp for one cloud, or --local-only to contact neither. Inspect each result; one provider failure does not block the other attempt.
 
@@ -22,7 +24,7 @@ The Cloud Run filesystem is disposable and memory-backed, so SQLite must not hol
 
 Cloud Run free usage is shared across a billing account and applied as a discount at Tier 1 prices. Singapore pricing differs from the cheaper US regions. This setup is intended for light apartment/demo traffic, and does not promise a zero bill. Artifact storage, database operations, secret versions/accesses, logs and network traffic also matter. See [Cloud Run pricing](https://cloud.google.com/run/pricing), [Firestore quotas](https://docs.cloud.google.com/firestore/quotas), [Artifact Registry pricing](https://cloud.google.com/artifact-registry/pricing) and [Secret Manager pricing](https://cloud.google.com/secret-manager/pricing).
 
-The GCP profile uses manual manager refresh (`APARTMENT_REFRESH_SECONDS=0`) and a 20-record queue to avoid unattended polling and repeated database reads. It disables model-provider calls with `LLM_PROVIDER=none`. The packaged CPU classifier and local TF-IDF retrieval still run; this does not add Vertex AI, Gemini, Bedrock, an embedding endpoint or a hosted vector database.
+The GCP profile uses manual manager refresh (`APARTMENT_REFRESH_SECONDS=0`) and a 20-record queue to avoid unattended polling and repeated database reads. It disables model-provider calls with `LLM_PROVIDER=none`. The IT demo can run the packaged CPU classifier and local TF-IDF retrieval; this does not add Vertex AI, Gemini, Bedrock, an embedding endpoint or a hosted vector database.
 
 Prometheus and Grafana remain in the local Docker stack. They are not deployed as always-running cloud containers. Do not point a frequent health check or Prometheus scrape at Cloud Run merely to keep it warm: each request can start an instance and consume compute. Cloud Run's built-in service metrics are separate from local Prometheus counters.
 
@@ -30,7 +32,7 @@ The optional Terraform budget sends alerts to default billing-account recipients
 
 ## Prerequisites and sign-in
 
-Use an existing dedicated project with trial billing already linked. Confirm remaining trial credit, trial expiry, account permissions and any organization policies in the Cloud Console. Do not automatically upgrade the billing plan. The current trial offers USD 300 over 90 days and requires a deliberate upgrade to continue as a paid account; limits and eligibility are account-dependent. See [Google Cloud trial terms](https://docs.cloud.google.com/free/docs/free-cloud-features).
+Use an existing dedicated project with trial billing already linked. Confirm remaining trial credit, trial expiry, account permissions and any organization policies in the Cloud Console. Do not automatically upgrade the billing plan. See [Google Cloud trial terms](https://docs.cloud.google.com/free/docs/free-cloud-features).
 
 Install Python 3.11, Docker Desktop, Terraform and the [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install). Start Docker, then work from this standalone repository root. Install `requirements-dev.txt` for application validation and `requirements-gcp.txt` for the optional Firestore client. `Dockerfile.gcp` installs the GCP requirements independently of the AWS Lambda image.
 
@@ -107,7 +109,7 @@ The repository is `asia-southeast1-docker.pkg.dev/YOUR-PROJECT-ID/ticketpilot-ap
 A successful Terraform apply is only the infrastructure step. When the service is intentionally paused, the URL is expected to be unavailable and online acceptance is skipped. Resume explicitly before running online checks. Check the deployed revision and digest, runtime settings, public HTTPS URL, configured Firestore database and secret access. Then run:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/validate_gcp_deployment.py --url https://SERVICE.run.app --project YOUR-PROJECT-ID --env-file .env
+.\.venv\Scripts\python.exe scripts/validate_gcp_deployment.py --url https://SERVICE.run.app --project YOUR-PROJECT-ID --env-file .env --credentials-file .secrets/gcp-tenant-credentials.json
 ```
 
 The deployed validator reads the manager code from the local private environment file, creates two clearly synthetic concerns, checks private tracking/manager updates/reopening/version conflicts, and independently verifies their exact Firestore documents through ADC. It never lists real manager queues or collections and does not publish a building notice. Cleanup targets only its own matching synthetic IDs with update-time preconditions. Its report is `.tools/gcp-deployment-validation.json`. Separately verify record persistence across a replacement Cloud Run revision. Use fictional records and preserve existing data. Never upload manager codes, private tracking links or real tenant screenshots as portfolio artifacts. Keep a record of which checks actually ran and their results in `DEPLOYMENT_STATUS.md`.
@@ -126,7 +128,7 @@ The same FastAPI routes, manager/tenant UI, NumPy artifacts, retrieval data and 
 | AWS | DynamoDB | Lambda, execution role, SSM parameters | `infra/bootstrap` and `infra/aws` |
 | GCP | Firestore | Cloud Run, attached service account, Secret Manager | `infra/gcp/bootstrap` and `infra/gcp/app` |
 
-These are independently deployable provider paths, not automatic failover or replicated multi-cloud data. Existing SQLite/DynamoDB records are preserved; no implicit data migration occurs. AWS provisioning remains paused until account activation/service access is confirmed. Optional AWS Bedrock RAG remains in source and disabled in the GCP profile.
+These are independently deployable provider paths, not automatic failover or replicated multi-cloud data. Existing SQLite/DynamoDB records are preserved; no implicit data migration occurs. AWS has its own deployed tenant-login release, last recorded paused. Optional AWS Bedrock RAG remains in source and disabled in the GCP profile.
 
 ## Temporarily pause and resume
 
@@ -136,13 +138,13 @@ For a combined stop from the repository root, run:
 .\.venv\Scripts\python.exe scripts/stop_services.py
 ```
 
-It stops Compose while preserving volumes, removes only an owned disposable kind demo when Docker is available, and pauses the existing GCP service through Terraform. The project comes from the private local deployment record; use `--project YOUR-PROJECT-ID` if needed. `--local-only` skips GCP. If Docker is already off, it stays off and cluster deletion is skipped; cloud pause is still attempted. Check the printed summary for errors or skipped cloud work. Real cloud records/images/secrets and Compose volumes are retained; only kind's fictional demo data is disposable.
+It stops Compose while preserving volumes, removes only an owned disposable kind demo when Docker is available, and attempts to pause both recorded cloud services through Terraform. The project comes from the private local deployment record; use `--project YOUR-PROJECT-ID` if needed. `--local-only` skips both clouds. If Docker is already off, it stays off and cluster deletion is skipped; cloud pause is still attempted. Check the printed summary for errors or skipped cloud work. Real cloud records/images/secrets and Compose volumes are retained; only kind's fictional demo data is disposable.
 
 Use the Terraform-managed `paused` variable through the helper to take the existing service offline without destroying the deployment. These commands change the service scaling configuration and require the existing private application state and generated variable file:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage pause
-.\.venv\Scripts\python.exe scripts/deploy_gcp.py --project YOUR-PROJECT-ID --region asia-southeast1 --stage resume
+.\.venv\Scripts\python.exe scripts/cloud.py gcp resume --project YOUR-PROJECT-ID
 ```
 
 Pause sets `paused=true`, Cloud Run manual scaling and zero instances. The deploy/all stages preserve the existing generated paused state; deploying a new image while paused skips online acceptance rather than silently bringing the site back online. Requests to the normal service URL become unavailable; existing requests can finish. Resume sets `paused=false` and restores automatic request-based scaling with minimum 0/maximum 1. It is a scaling change rather than a new image release. Consult the helper's help and the latest status for the actual observed operation/result. The Terraform default is enabled (`paused=false`), so preserve the local generated settings instead of applying against defaults or a fresh state.

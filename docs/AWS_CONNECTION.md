@@ -1,5 +1,7 @@
 # Connect AWS for development and deployment
 
+On the existing PC use **AWS controls → Sign in through browser** with profile `ticketpilot`, then **Check status**. The local launcher uses the CLI. MCP is an optional agent connection. [Redeploy and monitoring controls](OPERATIONS_QUICKSTART.md)
+
 The project can be written and tested without an AWS account. Live validation and deployment require an authenticated AWS identity allowed to manage the resources in `infra/`. No passwords, root access keys, or secret keys need to be pasted into chat.
 
 ## Agent Toolkit setup completed in this workspace
@@ -8,7 +10,7 @@ AWS CLI 2.39.6 was installed using AWS's signed Windows user installer. Browser 
 
 The official Agent Toolkit installed 25 default skills and registered AWS MCP for Codex, Claude Code, and Cursor. Each generated entry has `AWS_MCP_PROXY_PROFILES=ticketpilot`; generated launch commands and arguments were preserved. The toolkit service and its generated MCP endpoint use `us-east-1`. That does not change the project's Singapore deployment region. Remote skill-catalog access was verified successfully.
 
-Restart the coding client to load the new MCP server and skills. The MCP tool connection must be checked in that new session. Terraform/SDK authentication and cloud deployment still need their own validation. The manual alternatives below are reference instructions; do not overwrite the existing `ticketpilot` login profile when adding a credential-process bridge.
+Restart the coding client to load the new MCP server and skills. The MCP tool connection must be checked in that new session. The AWS deployment succeeded using the CLI fallback. Session expiry can require a fresh browser sign-in. The manual alternatives below are reference instructions; do not overwrite the existing `ticketpilot` login profile when adding a credential-process bridge.
 
 To use another AWS account later, run `aws login --profile <name>`, add that profile name to the space-separated `AWS_MCP_PROXY_PROFILES` list in each MCP configuration file, and restart the coding tool.
 
@@ -23,7 +25,7 @@ aws sts get-caller-identity --profile ticketpilot
 
 Complete the browser login yourself. AWS documents `aws login` as a way to use temporary console-derived credentials, with automatic refresh during the session. Use a development IAM identity rather than creating root access keys. Do not set up AWS Organizations merely to enable SSO: joining an organization can affect Free plan eligibility.
 
-For broad compatibility with Terraform and SDK credential providers, use AWS's documented credential-process bridge. The following commands write two settings to the named local `ticketpilot` profile; they do not store the temporary keys in the config file:
+For broad compatibility with Terraform and SDK credential providers, use AWS's documented credential-process bridge. The following commands write two settings to the separate local `ticketpilot-terraform` profile; they do not store the temporary keys in the config file:
 
 ```powershell
 aws configure set credential_process 'aws configure export-credentials --profile ticketpilot --format process' --profile ticketpilot-terraform

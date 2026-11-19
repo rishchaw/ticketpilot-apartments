@@ -1,6 +1,6 @@
 # Provider operations runbook
 
-Verified November 17, 2026 (Asia/Manila). AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled. See [deployment evidence](DEPLOYMENT_STATUS.md).
+Open `TICKETPILOT.cmd` for daily operations. **Check all service statuses (live)** queries each provider independently, plus Compose and kind. The last recorded AWS and GCP deployments were paused. GCP still needs its **Prepare** operation before its first tenant-login rollout. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
 
 ## Shared interface
 
@@ -61,7 +61,7 @@ For the specific recorded-paused/expired-GCP case, an explicit operator may inst
 .\.venv\Scripts\python.exe scripts/cloud.py aws deploy --profile ticketpilot --confirm-other-offline
 ```
 
-When switching back later:
+When switching to GCP, complete GCP Prepare while paused and provision its accounts first. For a subsequent switch to that prepared release:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
@@ -81,7 +81,7 @@ The observed AWS regional concurrency quota is 10 and initial reserved_concurren
 
 ## Deploy and validate
 
-AWS central deploy runs native bootstrap/deploy stages followed by apartment acceptance. Native AWS stages are preflight, bootstrap, deploy, pause, resume and status. GCP central deploy builds Dockerfile.gcp, runs pinned Firestore emulator acceptance and binds validation/promotion to the same local image ID before native all. --skip-build --local-image explicitly uses an already-built/prevalidated image and skips that local emulator check. Provider scripts and Terraform roots remain independent.
+AWS central deploy runs native bootstrap/deploy stages followed by read-only smoke checks when enabled. A full tenant workflow requires an explicit selection and current credentials. Native AWS stages are preflight, bootstrap, deploy, pause, resume and status. GCP central deploy builds Dockerfile.gcp, runs pinned Firestore emulator acceptance and binds validation/promotion to the same local image ID before native all. --skip-build --local-image explicitly uses an already-built/prevalidated image and skips that local emulator check. Provider scripts and Terraform roots remain independent.
 
 Run application tests, Terraform validation and the provider's image/emulator checks before promotion. Docker must be running for local builds. Lambda and Cloud Run use distinct runtime Dockerfiles. CI does not establish account/service/IAM access.
 

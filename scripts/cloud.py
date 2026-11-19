@@ -64,9 +64,10 @@ class Runner:
 
     def native(self, provider, stage, args):
         command = native_command(self.root, provider, stage, args)
-        print("Running " + provider + " stage " + stage + ".", flush=True)
+        if stage != "status":
+            print("Running " + provider + " stage " + stage + ".", flush=True)
         output = self.run(command)
-        if output:
+        if output and stage != "status":
             print(output.rstrip(), flush=True)
         return output
 

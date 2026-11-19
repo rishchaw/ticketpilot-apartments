@@ -1,5 +1,7 @@
 # Retrieval and optional RAG in TicketPilot
 
+**Live trial on November 19, 2026.** The owner API on the operator PC sent a fictional IT ticket to Nova Micro in Sydney. Model availability reported authorized. Converse returned HTTP 403 with account verification pending. The API saved the temporary ticket and returned `KB-007` in `retrieval_fallback` mode. Hosted generation is disabled. [Code paths](CODEBASE_USAGE.md)
+
 The current low-cost configuration uses local retrieval. Optional Bedrock generation is implemented for the original IT support demo, and LLM_PROVIDER=none keeps it disabled. The apartment portal currently uses fixed English/Filipino guidance selected by concern category; it does not generate answers from property documents.
 
 ```mermaid
@@ -27,6 +29,6 @@ Tenant concern submissions do not call the Bedrock path. The apartment GUIDANCE 
 
 The existing knowledge base belongs to the public IT demo: /api/knowledge and retrieval responses expose its contents. Do not add private leases, bills, passwords or tenant records to that shared JSON file. Apartment-specific RAG would need management-approved FAQs/procedures, a separate authenticated knowledge path, tenant/manager document access rules and evaluation for English/Taglish. Those features are not claimed as implemented.
 
-Docker packages the same local retrieval code for AWS/GCP. DynamoDB, Firestore and SQLite store concerns/authentication; they are not currently vector stores. Changing packaged articles requires a tested image update. See [operations](OPERATIONS_QUICKSTART.md) for Start versus Update, and [tenant access](TENANT_ACCESS.md) for the current account boundary.
+Docker packages the same local retrieval code for AWS/GCP. DynamoDB, Firestore and SQLite store concerns/authentication; they are not currently vector stores. Changing packaged articles requires a tested image update. See [operations](OPERATIONS_QUICKSTART.md) for Start versus Redeploy, and [tenant access](TENANT_ACCESS.md) for the current account boundary.
 
 Prometheus records answer mode, retrieved-source counts, provider success/fallback attempts and provider latency through ticketpilot/observability.py. These are runtime-process metrics, not a durable billing ledger or proof of answer accuracy. Grafana includes the provider-fallback rate; cloud billing remains separate.

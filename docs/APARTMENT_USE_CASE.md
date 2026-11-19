@@ -2,7 +2,7 @@
 
 TicketPilot serves a family-managed apartment building with eight confirmed units: **1A, 1B, 2A, 2B, 2C, 3A, 3B and 3C**. It replaces concerns buried in a Messenger group chat with an English/Filipino mobile form and one manager queue.
 
-The source now includes closed tenant accounts and per-account concern ownership. Read [deployment status](DEPLOYMENT_STATUS.md) for the accepted cloud image and current pause state. Authentication rollout verification is still being completed; a source change alone does not establish deployed behavior. AWS is to remain paused under the latest stop request, and GCP remains separately paused without this authentication release. No cloud plan is upgraded automatically.
+The source now includes closed tenant accounts and per-account concern ownership. Read [deployment status](DEPLOYMENT_STATUS.md) for the accepted cloud image and current pause state. AWS has the authenticated image and eight accounts. Hosted sign-in acceptance is pending a resume. The launcher provides separate tenant and manager links for each provider. GCP retains an older paused revision. [Operator guide](OPERATIONS_QUICKSTART.md)
 
 ## Tenant and manager workflow
 

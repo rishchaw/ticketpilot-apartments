@@ -1,109 +1,63 @@
-# Start, stop and monitor TicketPilot
+# Start, redeploy and monitor TicketPilot
 
-Use the launcher for everyday operation. Opening its menu does not start a cloud service, open Docker, log in, deploy an image or incur application requests. Choose an action explicitly.
+**Start** brings back the version already deployed. **Redeploy** builds the code in this folder, tests the image and uses Terraform to update the selected provider. A redeploy preserves an existing pause. **Stop** takes the site offline and keeps its data.
 
-Current preparation: AWS has the authenticated release, eight accounts and private per-unit handouts, and remains paused. GCP is also paused, retaining an older image that predates tenant login; complete its upgrade below before starting it. Read [deployment status](DEPLOYMENT_STATUS.md) for the last verified state.
+## Open the controls
 
-## Open the control menu
+1. In File Explorer open the standalone `ticketpilot-aws` folder. Look for `TICKETPILOT.cmd` next to `README.md`. Double-click the launcher.
+2. Choose **Check all service statuses (live)**. It queries both recorded cloud services, the project's Compose containers and the local kind demo. An expired login can make one result **unknown** while the others still report. Opening the main menu alone starts nothing.
+3. Choose **AWS controls** or **GCP controls** for the site you want. **0** goes back. The last recorded state was paused on both clouds. [Deployment evidence](DEPLOYMENT_STATUS.md)
 
-Double-click **TICKETPILOT.cmd** in the standalone project folder. From PowerShell, these two lines work regardless of the starting directory:
+If you prefer PowerShell, open that folder in File Explorer, type `powershell` in the address bar, press Enter and run `.\TICKETPILOT.cmd`. The launcher finds its own Python environment. On a fresh clone, complete [local setup](STACK_GUIDE.md#fresh-clone-setup). A public clone contains the source. Operating an existing cloud deployment also requires its private Terraform state, settings, deployment records and matching secrets from the original PC or backup.
 
-```powershell
-Set-Location -LiteralPath 'C:\Users\rish\Documents\DLSU College - New PC\Job Application\!RESUMES\Beyond Application\ticketpilot-ai\ticketpilot-aws'
-.\TICKETPILOT.cmd
-```
+## Bring back the existing AWS site
 
-The menu groups AWS, GCP, local tools, console/dashboard links and Stop all. Start means resume the existing deployment. Update/deploy is a separate deliberate operation; a Start selection does not build or replace the application.
+Choose **AWS controls → Sign in through browser** if your session expired. Use the existing `ticketpilot` profile. Choose **Start existing portal**, then **Check status**. Look for `paused: false` and a successful health response (HTTP 200). Choose **Open tenant portal** to see the login screen or **Open manager dashboard** to manage concerns. For a tenant check, sign in using that unit's privately delivered credentials. [Tenant access](TENANT_ACCESS.md)
 
-| What you want | Choose | What happens |
-| --- | --- | --- |
-| Turn the AWS site on | AWS ? Start | Verify the protected release/accounts and other provider's pause, then restore enabled Lambda concurrency. |
-| Turn the AWS site off | AWS ? Stop | Set reserved concurrency0. The same URL returns HTTP429; stored concerns, accounts and images remain. |
-| Turn the prepared GCP site on | GCP ? Start | Verify the authenticated release/accounts and other provider's pause, then restore automatic min0/max1 scaling. |
-| Turn GCP off | GCP ? Stop | Select manual0 instances. The retained service URL normally returns HTTP503. |
-| Check a provider | AWS/GCP ? Status | Read its service state; authentication errors mean unverified state. |
-| Show local cloud metrics | AWS/GCP ? Start monitoring | Start local Prometheus/Grafana for that selected active cloud only. |
-| Finish a monitoring session | AWS/GCP ? Stop monitoring | Stop the local monitoring containers; keep their volumes. |
-| Stop the project services | Stop all | Stop local workloads and independently pause both recorded cloud providers. Inspect each result. |
+## Redeploy after changing code
 
-Lambda may still show **Active** in AWS while paused: that describes a ready function configuration. Concurrency0/HTTP429 is the stop control. Cloud Run automatic min0 means it can wake for a request; manual0 is the explicit pause.
+1. Save the version you want to publish in this folder. The launcher builds local files. If you edited the code on GitHub instead, bring those changes into this checkout first. Keep your private `.env`, `.secrets`, `.tools` deployment records and Terraform state. Check the commit and its tests in [GitHub Actions](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml).
+2. Choose **Local Docker and Kubernetes → Open Docker Desktop**. Wait until the Linux engine is ready. Open **Check all service statuses (live)**. Stop the other provider if it is serving. Renew any required login in its provider menu.
+3. **For AWS**, choose **AWS controls → Redeploy current code**. **For GCP's retained older revision**, choose **GCP controls → Sign in through browser**, complete both Google sign-ins, then **Prepare first tenant-login deployment**. Prepare redeploys while paused and provisions the separate GCP accounts. For subsequent code changes use **GCP controls → Redeploy current code**.
+4. Wait for the action to finish. Docker builds and exercises the provider image. The scripts review and apply Terraform plans and select the new image by digest. Choosing Redeploy authorizes that operation. There is no second Apply button. A failing stage may follow a successful cloud change, so use **Check status** before retrying.
+5. If you want the site available and Status says it is paused, select **Start existing portal**, then **Check status** again. Look for HTTP 200 on the health check. Open the tenant and manager pages. AWS and GCP have separate tenant credentials and concern histories.
 
-The command-line version is useful for shortcuts and scripts:
+PowerShell shortcuts from the project folder perform the same actions. Pick the line for your task.
 
-```powershell
-.\.venv\Scripts\python.exe scripts/control.py aws start
-.\.venv\Scripts\python.exe scripts/control.py aws stop
-.\.venv\Scripts\python.exe scripts/control.py --help
-```
-
-The prefix is `.\.venv` with one backslash after the dot. If Python is not found, verify that you are inside `ticketpilot-aws`; do not create a new environment over the existing one just to fix the working directory. `STOP_SERVICES.cmd` remains a direct one-click stop alternative.
-
-## Sign in and prepare each provider
-
-**AWS:** use profile `ticketpilot`, region `ap-southeast-1`. Choose AWS Login when browser authentication has expired. Signing in does not resume the function. The eight tenant credentials are separate from AWS operator login and the manager access code. Give residents only their own private handout from `.secrets/tenant-logins/`; follow [tenant access](TENANT_ACCESS.md).
-
-**GCP:** use the existing `ticketpilot-gcp` configuration, region `asia-southeast1`, and its CLI plus application-default credentials (ADC). Renew both sign-ins for that existing project; do not create service-account key files. Authentication alone does not resume Cloud Run.
-
-GCP needs a one-time authenticated-release preparation before Start can succeed. Keep it paused throughout this preparation:
-
-```powershell
-gcloud config configurations activate ticketpilot-gcp
-gcloud auth login
-gcloud auth application-default login
-gcloud auth application-default set-quota-project YOUR-GCP-PROJECT-ID
-.\.venv\Scripts\python.exe scripts/cloud.py gcp deploy --project YOUR-GCP-PROJECT-ID --leave-paused --apartment-units '1A,1B,2A,2B,2C,3A,3B,3C'
-.\.venv\Scripts\python.exe scripts/manage_tenants.py gcp provision
-```
-
-Replace the project placeholder with the existing private project ID. Deploy preserves its saved pause. Provision uses the selected GCP deployment metadata and a separate private GCP inventory, not AWS passwords. Then inspect GCP Status and choose Start explicitly when you want it available. Do not bypass an old-image, missing-account or failed-authentication guard. No GCP preparation or resume is implied by reading this guide.
-
-Only one serving provider is intended. Stop the current provider before starting the other. If the other login expired, the normal guard blocks Start instead of guessing. Its narrow explicit operator-attestation option still requires recorded paused state and fresh unavailable known URLs; use it only after independently confirming the pause. The [full operations guide](PROVIDER_OPERATIONS.md) explains that exception and the data boundary.
-
-## Where Terraform fits
-
-The menu calls the existing native scripts. Those use Terraform init, a saved plan, plan checks and apply for infrastructure changes. You do not need to type Terraform commands for every Start/Stop. Docker builds the application image during an explicit update/deploy; Terraform points the native runtime to its accepted digest.
-
-| Terraform root | Resources it owns |
+| Task | Command |
 | --- | --- |
-| `infra/bootstrap` | AWS ECR image repository/retention and the optional email budget. |
-| `infra/aws` | Lambda/Function URL, protected DynamoDB table/index, runtime role and CloudWatch log group. |
-| `infra/gcp/bootstrap` | Required APIs, Artifact Registry, secret metadata and the configured project budget. |
-| `infra/gcp/app` | Cloud Run, protected Firestore database, runtime service account and scoped access bindings. |
+| Show status across the project | `.\TICKETPILOT.cmd overview` |
+| Publish current code to AWS | `.\TICKETPILOT.cmd aws redeploy` |
+| Upgrade the older paused GCP site and create its accounts | `.\TICKETPILOT.cmd gcp prepare` |
+| Publish later code changes to GCP | `.\TICKETPILOT.cmd gcp redeploy` |
+| Resume or pause AWS | `.\TICKETPILOT.cmd aws start` or `.\TICKETPILOT.cmd aws stop` |
+| Resume or pause GCP | `.\TICKETPILOT.cmd gcp start` or `.\TICKETPILOT.cmd gcp stop` |
 
-Keep each root's private state and generated settings. Passwords are provisioned into the private authentication store outside Terraform; the local inventories/handouts never belong in Terraform state. Pause preserves records, accounts, images, identities and URLs. Destroying resources or deleting state is a separate operation and is not a cost-saving stop button.
+If the other provider's status cannot be verified, use its **Sign in through browser** and **Check status**. The command output explains the problem if a provider reports an active site, mismatched account, missing state, or unexpected image. [Provider operations](PROVIDER_OPERATIONS.md)
 
-## See what is running and what it costs
+## Monitor a deployment
 
-| View | Where to look | What it answers |
+| What you want to see | What to open | What to look for |
 | --- | --- | --- |
-| AWS application | Launcher console link ? Lambda ? ticketpilot-aws ? Monitor; CloudWatch Logs | Invocation/error/throttle/duration metrics and execution logs. Check concurrency0 for pause. |
-| AWS cost and credits | [Billing and Cost Management](https://console.aws.amazon.com/costmanagement/) ? Bills; Credits/Free Tier or account-plan overview | Monthly service charges, credits applied, remaining credit and expiry. Expand services/regions for the known deployment. |
-| GCP application | Launcher console link ? Cloud Run ? ticketpilot-apartments ? Metrics/Logs | Request errors, latency and instances; inspect manual0 while paused. |
-| GCP costs | [Cloud Billing](https://console.cloud.google.com/billing) ? Reports or Cost table; select the existing billing account and project | Costs by service/project, discounts/credits and invoice detail. |
-| Local containers | Docker Desktop ? Containers, or a scoped local container check | Which app/monitoring/kind containers are running on this PC. |
-| Local Kubernetes | Local ? Kubernetes status | Only the project's isolated kind demo; it is not an AWS/GCP cluster. |
+| The tenant concern queue | Provider menu → Open manager dashboard | Open concerns, assignments, progress and private manager notes. |
+| All requests, errors and latency at the cloud provider | Dashboards, services and costs → AWS Lambda monitoring / AWS CloudWatch, or GCP Cloud Run monitoring / GCP logs | Select the time of the request. A paused AWS Lambda can still display Active in the console. |
+| Application metrics on your PC | Run Docker Desktop. In the **serving provider's** menu choose **Start local Prometheus/Grafana**. Open **Dashboards → Prometheus targets and scrape health**. | The `ticketpilot` target should show UP after its first scrape. Open Prometheus and run `up{job="ticketpilot"}`. Cloud scraping runs every five minutes and invokes the site. |
+| Charts | Dashboards → Open local Grafana | Sign in as `admin` with `GRAFANA_ADMIN_PASSWORD` from your private `.env`. Open **TicketPilot Apartment Operations**. Rate panels need at least two samples. |
+| Costs and credits | Dashboards → AWS billing / credits / budgets, or GCP billing/budgets/credits | Check service charges before credits, credit balance and expiry. GCP has a $10/month alert budget. Installing the optional AWS email budget requires a recipient. Alerts do not cap spending. |
+| Database, images and configuration | Dashboards → DynamoDB / ECR / SSM or Firestore / GCP container images / GCP Secret Manager | These resources survive Stop. Terraform manages infrastructure when an operation needs it. |
+| Kubernetes demo | Local → Check Kubernetes demo | Check replica counts. Forward each desired service in a separate launcher window. App uses port 18080, Prometheus 19090 and Grafana 13000. |
 
-Select the same AWS account or GCP project shown by Status; an account-level bill may include other workloads.
+The optional legacy CloudWatch exporter has its own foreground process on Windows. If you explicitly started that exporter, stop it with Ctrl+C in that window. [Advanced exporter controls](AWS_CONNECTION.md#host-exporter-for-windows-login-profiles)
 
-Check **resource usage before credits** as well as the amount payable. A zero balance due can mean credits covered real usage. Billing data can lag. The launcher does not poll paid Cost Explorer APIs or create a monitoring server to show bills. Native consoles remain the source for provider billing and fleet metrics. [AWS bills](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/getting-viewing-bill.html), [AWS plan/credits](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/free-tier-plans.html), [GCP Cost table](https://docs.cloud.google.com/billing/docs/how-to/cost-table).
+Use the serving provider's **Stop local Prometheus/Grafana** when finished. [Prometheus queries and stack details](STACK_GUIDE.md) · [Local Kubernetes credentials and ports](KUBERNETES.md)
 
-Stopping compute does not erase stored resources. AWS DynamoDB/ECR/SSM/log data and GCP Firestore/Artifact Registry/secret/log data may continue consuming storage or other service allowances. Monitoring scrapes, log queries and SDK operations can also consume usage. AI generation remains disabled. No plan upgrade or capacity purchase occurs automatically.
+## Run just the local tools
 
-The installed GCP budget alerts at the USD 10 monthly target; it is not a spending cap. AWS's USD 10 email budget remains optional and is not installed without an explicitly chosen recipient. Credits, alerts and a paused app are different controls; inspect the actual bill and remaining credit rather than assuming a permanent zero cost.
+- **Local → Start local apartment app** starts Compose with SQLite. Use **Rebuild local app after editing code** to update it. Open **Dashboards → Local tenant portal**, **Local manager dashboard** or **Local app health**. Tenant sign-in requires accounts provisioned in that local database. For a ready-made demonstration with eight fictional accounts use **Local → Start and validate isolated Kubernetes demo**. [Tenant environments](TENANT_ACCESS.md)
+- **Local → Monitor local app with Prometheus and Grafana** points the shared Compose dashboards at `app:8080`. The local scrape interval is 15 seconds. The most recently selected local or cloud monitoring target owns ports 9090 and 3000. Check the Targets screen after switching.
+- **Local → Show TicketPilot Docker containers** lists the project's containers and port mappings. Docker Desktop's Containers view provides their logs. **Stop local app** and **Stop Compose monitoring** preserve the volumes. **Stop Kubernetes demo** removes the kind cluster and its fictional data.
+- To check tooling without starting anything, run `.\TICKETPILOT.cmd --check`. [Local setup](STACK_GUIDE.md#fresh-clone-setup)
 
-## Docker, Prometheus, Grafana and Kubernetes
+## Finish a demo
 
-Docker Desktop is a local engine. Turning it off does not pause Lambda or Cloud Run. Pausing a cloud does not automatically turn off Docker Desktop. The launcher offers opening Docker separately; ordinary cloud resume/pause does not require leaving its engine running, while image builds and local tools do.
-
-Prometheus and Grafana are optional local containers. Use the selected cloud's Start monitoring only for a session, then Stop monitoring. They listen on localhost:
-
-- **Grafana:** http://127.0.0.1:3000; username `admin`, password from the private `GRAFANA_ADMIN_PASSWORD` value in local `.env`.
-- **Prometheus:** http://127.0.0.1:9090; Targets should show the selected cloud job up after startup and its first scrape. Query `up{job="ticketpilot"}`.
-
-The cloud scrape interval is five minutes. Rate panels need at least two samples and use a 15-minute window. `/metrics` uses the separate private metrics bearer token; a tenant password or manager code is not its credential. App counters reset with runtime processes, so use the provider console for fleet health rather than treating these graphs as durable global totals. The [stack guide](STACK_GUIDE.md) includes useful Prometheus queries and dashboard details.
-
-The kind Kubernetes demo uses fictional accounts/data and an isolated kubeconfig. Local Kubernetes Start/Stop/status and port-forward actions remain separate from cloud hosting. Stop removes only the verified owned demo cluster and its disposable fictional PVC. Real Compose/cloud data volumes and databases are retained. No EKS/GKE cluster or always-running cloud Grafana/Prometheus server is required. See [Kubernetes](KUBERNETES.md) for the isolated demo and forwarding ports.
-
-If a command fails, read its result before trying another action. Wrong-directory errors need the correct folder; expired login needs sign-in; a GCP old-image guard needs authenticated-release preparation. None requires deleting data, resetting tenant passwords, erasing Terraform state or upgrading the cloud plan.
-
-Kubernetes Start now also validates the isolated demo and creates its eight fictional accounts, so the local portal is ready for sign-in. Its private login inventory is .tools/kubernetes/tenant-accounts.json. The local menu also shows scoped Docker container status and can stop all local tools without contacting either cloud.
+Use the provider's **Stop portal and cloud scrapes**, then **Check status**. AWS pause sets reserved concurrency to zero (expected HTTP 429). GCP pause selects manual scaling with zero instances (expected HTTP 503 on the retained URLs). The database, images, logs and secrets may still incur charges. Stop local workloads separately if you started them. **Stop all known cloud and local services** attempts both cloud pauses independently and stops the normal local stack and owned kind demo. Read each result, especially after a login expires. Closing the menu only exits the launcher.

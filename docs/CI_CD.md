@@ -1,8 +1,8 @@
 # CI/CD for TicketPilot Apartments
 
-The public repository is `rishchaw/ticketpilot-apartments`. Publish the **contents of ticketpilot-aws as the repository root**, including its `.github` directory. The parent ticketpilot-ai folder contains separate projects; publishing the whole parent would put this project's workflows in a nested folder that GitHub does not run.
+The public repository is `rishchaw/ticketpilot-apartments`. The standalone folder is the repository root and contains the workflows in `.github`. The parent ticketpilot-ai folder contains separate projects; publishing the whole parent would put this project's workflows in a nested folder that GitHub does not run.
 
-GitHub stores the source, runs the checks and publishes container images. It does not host the FastAPI application through GitHub Pages. The public tenant HTTPS address requires application hosting: AWS activation still blocks the AWS path, while the separately deployed GCP Cloud Run/Firestore service is currently paused to save costs. See [GCP deployment](GCP_DEPLOYMENT.md) and [observed status](DEPLOYMENT_STATUS.md).
+Pushing to this repository starts CI. To put local changes on the retained AWS or GCP deployment, use **Redeploy current code** in the launcher. The separate GitHub AWS promotion requires deliberate OIDC and remote-state configuration. [Beginner redeployment](OPERATIONS_QUICKSTART.md)
 
 ## Three workflows
 
@@ -16,18 +16,18 @@ CI has read-only repository permissions and no cloud credentials. Only the relea
 
 The normal CI path makes no AWS calls and no paid model calls. The apartment browser test uses a separate fictional-data database, a temporary server and test-only access codes. Artifacts use an explicit allowlist of JSON/JUnit summaries and fictional screenshots. The workflow never uploads the full .tools directory, .env, .secrets, databases, Terraform state, or saved plans.
 
-## First GitHub run
+## Use the existing repository
 
 1. Authenticate with the intended GitHub account through the plugin or the official GitHub CLI browser flow. No passwords or access tokens need to be pasted into chat. Publishing workflows needs repository and workflow-write permission.
-2. Create the standalone public repository and push its main branch. CI starts automatically. Confirm all five jobs pass in Actions before claiming GitHub validation succeeded.
+2. Push the intended source change to the existing main branch. CI starts automatically. Confirm all five jobs pass in Actions before claiming GitHub validation succeeded.
 3. Run **TicketPilot container release** from main when you want a tested deliverable. Releases are manual to avoid rebuilding/publishing containers on every small change.
 4. Read the release summary and download `release-manifest` if needed. The manifest binds immutable image digests to the repository, commit and workflow run. Commit-addressed tags also include run/attempt IDs; deployments use digests because tags can move.
 
 GHCR images are `ghcr.io/rishchaw/ticketpilot-apartments` and `ghcr.io/rishchaw/ticketpilot-apartments-lambda`. A new GHCR package may be private even when its source repo is public. Package visibility is a separate setting. The repository's GITHUB_TOKEN publishes/reads associated packages; do not add a personal access token merely to publish from this workflow.
 
-## AWS promotion: configure only after activation
+## Optional AWS promotion from GitHub
 
-The AWS workflow updates an **already deployed** application. It deliberately does not perform initial provisioning, upload manager secrets, create billing plans, or enable Bedrock. First complete the reviewed Windows deployment in AWS_DEPLOYMENT.md after account activation, then configure CI state/authentication below. Keep `AWS_DEPLOY_ENABLED` unset or false while AWS Support resolves activation.
+The AWS workflow updates an existing Lambda image. The operator PC has already deployed AWS. Keep `AWS_DEPLOY_ENABLED` unset or false until a dedicated OIDC role, migrated state, matching settings and the promotion environment are in place. The workflow runs a live endpoint check and assumes an available site. Use the local launcher to redeploy while paused and to maintain its private deployment records.
 
 1. Create a private S3 bucket in Singapore for Terraform state. Enable versioning, encryption, and public-access blocking. Back up the existing application state privately before migration. Ordinary AWS storage/request charges can apply.
 2. Add the following ignored file at `infra/aws/backend.ci.tf` locally:
@@ -74,7 +74,7 @@ To roll back an image, select an earlier successful release with a retained mani
 
 GCP uses its own Terraform bootstrap/application roots and `Dockerfile.gcp` with the optional Firestore dependency. The Cloud Run image must be built from that Dockerfile; the existing GHCR app/Lambda release is not automatically a Firestore-enabled release. Local GCP deployment uses the browser-authenticated `ticketpilot-gcp` CLI configuration and ADC through `scripts/deploy_gcp.py`. No GCP MCP connection, GitHub service-account key, GCP remote-state bucket or GitHub-to-GCP deployment identity has been installed by this setup.
 
-The GCP Terraform roots have been validated locally with Google provider locks for Linux and Windows. CI now includes a fourth credential-free job that builds `Dockerfile.gcp`, runs the isolated Firestore emulator validator and retains allowlisted GCP metadata/validation reports for three days. Its Terraform job validates all four AWS/GCP roots with readonly provider locks and no cloud backend. Hosted GCP checks passed in run 43913020484; CI configuration, local validation and actual deployment remain separate evidence. The current AWS promotion workflow does not deploy to GCP. A future manual GCP promotion can use GitHub OIDC through Workload Identity Federation after remote-state and deployment permissions are deliberately configured; do not upload a long-lived service-account JSON key to GitHub. See [Google's deployment pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
+The GCP Terraform roots have been validated locally with Google provider locks for Linux and Windows. CI includes a credential-free job that builds `Dockerfile.gcp`, runs the isolated Firestore emulator validator and retains allowlisted GCP metadata/validation reports for three days. Its Terraform job validates all four AWS/GCP roots with readonly provider locks and no cloud backend. Hosted GCP checks passed in run 43913020484; CI configuration, local validation and actual deployment remain separate evidence. The current AWS promotion workflow does not deploy to GCP. A future manual GCP promotion can use GitHub OIDC through Workload Identity Federation after remote-state and deployment permissions are deliberately configured; do not upload a long-lived service-account JSON key to GitHub. See [Google's deployment pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
 
 Prometheus/Grafana stay in local Compose, and the GCP profile disables paid AI calls and automatic manager polling. GitHub runner allowances do not cover Cloud Run, Firestore, image storage or other application-hosting usage. The optional USD 10 GCP budget sends alerts only; it does not enforce a project-wide cost ceiling.
 
@@ -84,7 +84,7 @@ Prometheus/Grafana stay in local Compose, and the GCP profile disables paid AI c
 
 ## Free platform choices
 
-GitHub Actions fits this repository: standard GitHub-hosted runners are free for public repositories. Current GitHub Free private-repository compute is expressed as a monthly monetary allowance, not a guaranteed fixed minute count. GitLab Free provides 400 compute minutes per namespace per month and may require identity verification. CircleCI Free includes 30,000 credits, with usable minutes depending on executor size. CI/CD allowances do not make application hosting free.
+The project uses GitHub Actions with standard hosted runners. Check included usage and artifact or package storage in your account before changing repository visibility or runner types. The links below give current allowances for the earlier platform comparison.
 
 Official references:
 

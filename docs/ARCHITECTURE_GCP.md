@@ -1,5 +1,7 @@
 # GCP architecture and rationale
 
+Use **GCP controls → Prepare** for the retained older revision. After a successful preparation, **Start** enables the site and **Open manager dashboard** opens the queue. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [file-to-service map](CODEBASE_USAGE.md).
+
 Checkpoint November 18, 2026 (Asia/Manila): the retained Cloud Run revision was accepted on November 16 and paused with manual-zero scaling. It predates tenant account authentication and must not be resumed as the new protected portal. The updated source/diagram below describes the next authenticated deployment; no GCP authentication rollout is claimed. Renew CLI/ADC access, deploy the tested release while paused and provision a separate eight-account GCP registry before any explicit resume. See [deployment status](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
 
 ```mermaid

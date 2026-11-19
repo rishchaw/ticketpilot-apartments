@@ -24,6 +24,12 @@ APARTMENT_UNITS = "1A,1B,2A,2B,2C,3A,3B,3C"
 OTHER_AUTH_FAILURE = "Cannot authenticate the other provider's pause state"
 LOCAL_URLS = {"grafana": "http://127.0.0.1:3000", "prometheus": "http://127.0.0.1:9090",
               "k8s-app": "http://127.0.0.1:18080", "k8s-prometheus": "http://127.0.0.1:19090", "k8s-grafana": "http://127.0.0.1:13000"}
+LOCAL_URLS.update({
+    "local-tenant": "http://127.0.0.1:8080/tenant",
+    "local-manager": "http://127.0.0.1:8080/manager",
+    "local-health": "http://127.0.0.1:8080/health",
+    "targets": "http://127.0.0.1:9090/targets",
+})
 AWS_URLS = {
     "aws-console": "https://ap-southeast-1.console.aws.amazon.com/console/home?region=ap-southeast-1",
     "aws-lambda": "https://ap-southeast-1.console.aws.amazon.com/lambda/home?region=ap-southeast-1#/functions/ticketpilot-aws?tab=monitoring",
@@ -33,12 +39,19 @@ AWS_URLS = {
     "aws-ssm": "https://ap-southeast-1.console.aws.amazon.com/systems-manager/parameters/?region=ap-southeast-1",
     "aws-billing": "https://console.aws.amazon.com/billing/home",
     "aws-credits": "https://console.aws.amazon.com/billing/home#/credits",
-    "aws-budgets": "https://console.aws.amazon.com/cost-management/",
+    "aws-budgets": "https://console.aws.amazon.com/billing/home#/budgets",
 }
 GCP_PATHS = {"gcp-console": "/home/dashboard", "gcp-cloud-run": "/run/detail/asia-southeast1/ticketpilot-apartments/metrics",
-             "gcp-firestore": "/firestore", "gcp-artifact-registry": "/artifacts", "gcp-logs": "/logs/query", "gcp-billing": "/billing"}
-CLOUD_ACTIONS = ("start", "stop", "status", "monitor-start", "monitor-stop", "login", "portal", "update")
-LOCAL_ACTIONS = ("docker-open", "docker-status", "stop-local", "k8s-start", "k8s-status", "k8s-stop", "k8s-forward-app", "k8s-forward-prometheus", "k8s-forward-grafana")
+             "gcp-monitoring": "/monitoring", "gcp-secrets": "/security/secret-manager", "gcp-firestore": "/firestore", "gcp-artifact-registry": "/artifacts", "gcp-logs": "/logs/query", "gcp-billing": "/billing"}
+CLOUD_ACTIONS = ("start", "stop", "status", "monitor-start", "monitor-stop", "login", "portal", "manager", "update", "redeploy")
+COMPOSE_ACTIONS = {
+    "app-start": ("up", "-d", "--no-deps", "app"),
+    "app-rebuild": ("up", "-d", "--build", "--no-deps", "app"),
+    "app-stop": ("stop", "app"),
+    "monitor-start": ("up", "-d", "--no-deps", "--force-recreate", "prometheus", "grafana"),
+    "monitor-stop": ("stop", "prometheus", "grafana"),
+}
+LOCAL_ACTIONS = tuple(COMPOSE_ACTIONS) + ("docker-open", "docker-status", "stop-local", "k8s-start", "k8s-status", "k8s-stop", "k8s-forward-app", "k8s-forward-prometheus", "k8s-forward-grafana")
 
 
 class ControlError(Exception):
@@ -92,7 +105,7 @@ class Controller:
         if not script.is_file():raise ControlError("Required project helper is missing. Update the project source before retrying.")
         return [project_python(self.root), str(script), *map(str, arguments)]
 
-    def run(self, command, *, stream=False, env=None, forwarding=False):
+    def run(self, command, *, stream=False, env=None, forwarding=False, quiet=False):
         try:
             result = self.runner(command, cwd=self.root, env=env, capture_output=not stream,
                                  text=True, encoding="utf-8", errors="replace", check=False)
@@ -103,7 +116,7 @@ class Controller:
             raise ControlError("Action interrupted. Check the provider status before retrying.") from None
         except (OSError, subprocess.SubprocessError):
             raise ControlError("The selected tool could not run. Check --check and the setup guide.") from None
-        if not stream:
+        if not stream and not quiet:
             for value in (getattr(result, "stdout", ""), getattr(result, "stderr", "")):
                 if value:self.print(value.rstrip())
         return result
@@ -151,7 +164,7 @@ class Controller:
         self.opener(url)
         return 0
 
-    def portal(self, provider):
+    def portal(self, provider, *, manager=False):
         value = self.record(provider).get("url")
         try:
             parsed = urlsplit(value) if isinstance(value,str) else None
@@ -161,7 +174,7 @@ class Controller:
             valid = False
         if not valid:
             raise ControlError("The saved service URL is invalid. Check provider Status before opening the portal.")
-        self.opener(value.rstrip("/") + "/tenant")
+        self.opener(value.rstrip("/") + ("/manager" if manager else "/tenant"))
         return 0
 
     def cloud(self, provider, action, *, attest=False, interactive=False):
@@ -178,6 +191,8 @@ class Controller:
                 self.print("The other provider's login could not be checked. Only confirm if you independently know it is paused. The native guard will still require a saved pause and fresh unavailable URLs.")
                 allowed = self.input("Type PAUSED to confirm, or press Enter to cancel: ").strip() == "PAUSED"
             if allowed:result = self.run([*command, "--confirm-other-offline"])
+        if action == "update" and result.returncode == 0:
+            self.print("Redeploy finished. Choose Check status, then Start if the portal is paused and you want it online.")
         if result.returncode and provider == "gcp" and action == "start":
             self.print("First GCP start needs the tenant-login image and eight accounts. Use GCP Prepare if that upgrade is outstanding; renew GCP sign-in when requested. Start never performs that upgrade.")
         return result.returncode
@@ -222,7 +237,82 @@ class Controller:
         if not result.returncode:self.print("GCP prepared and still stopped. Tenant logins are private in .secrets/gcp-tenant-credentials.json. Use Start only when you want it available.")
         return result.returncode
 
+    def compose(self, action):
+        docker = shutil.which("docker")
+        if not docker:
+            raise ControlError("Install Docker Desktop and start its Linux engine.")
+        command = [docker, "compose", "-p", "ticketpilot-aws", "-f", str(self.root / "compose.yaml"), "--profile", "local"]
+        env = os.environ.copy()
+        # Use the local app target even after a shell was used for cloud monitoring.
+        env["PROMETHEUS_CONFIG"] = "./monitoring/prometheus/local.yml"
+        if action.endswith("-stop"):
+            # Compose validates every service even for stop. These values stay in the CLI.
+            for key in ("ADMIN_TOKEN", "METRICS_TOKEN", "GRAFANA_ADMIN_PASSWORD"):
+                env[key] = "unused-for-stop"
+        elif not (self.root / ".env").is_file() or (action == "monitor-start" and not (self.root / ".secrets/metrics-token").is_file()):
+            raise ControlError("Local configuration is missing. See Fresh-clone setup in docs/STACK_GUIDE.md. Restore your private settings on an existing deployment.")
+        return self.run([*command, *COMPOSE_ACTIONS[action]], env=env, stream=True).returncode
+
+    def overview(self):
+        """Read each system independently so an expired login leaves other results visible."""
+        failed = False
+        for provider in ("aws", "gcp"):
+            label = provider.upper()
+            self.print(f"Checking {label} portal...")
+            try:
+                result = self.run(self.helper("cloud.py", provider, "status"), quiet=True)
+                if result.returncode:
+                    raise ControlError("choose " + label + " / Check status for details")
+                info = json.loads(result.stdout)
+                if provider == "aws" and isinstance(info, dict) and info.get("deployed") is False:
+                    self.print("AWS portal: expected TicketPilot Lambda function was not found in Singapore.")
+                    continue
+                if not isinstance(info, dict) or type(info.get("paused")) is not bool:
+                    raise ValueError
+                checks = ([info.get("health_http_status")] if provider == "aws" else
+                          [entry.get("health_http_status") for entry in info.get("verified_urls", [])])
+                state = "paused" if info["paused"] else "enabled"
+                http = ", ".join(str(code) for code in checks if type(code) is int)
+                verified = (info.get("health_verified") is True if provider == "aws" else
+                            bool(checks) and all(code in ({404, 503} if info["paused"] else {200}) for code in checks))
+                failed |= not verified
+                self.print(f"{label} portal: {state} | HTTP {http or 'unknown'}" +
+                           ("" if verified else " | check endpoint health"))
+            except (ControlError, ValueError, TypeError, AttributeError) as error:
+                failed = True
+                self.print(f"{label} portal: unknown. " + (str(error) if isinstance(error, ControlError) else "Check provider status."))
+
+        self.print("Docker Desktop / TicketPilot Compose containers")
+        try:
+            docker = shutil.which("docker")
+            if not docker:
+                raise ControlError("Docker CLI unavailable")
+            result = self.run([docker, "ps", "-a", "--filter", "label=com.docker.compose.project=ticketpilot-aws",
+                               "--format", '{{.Label "com.docker.compose.service"}} {{.Status}}'], quiet=True)
+            if result.returncode:
+                raise ControlError("Check Docker Desktop and the selected Docker context.")
+            self.print(result.stdout.strip() or "No TicketPilot Compose containers found.")
+        except ControlError as error:
+            failed = True
+            self.print("Container status unknown. " + str(error))
+        try:
+            result = self.run(self.helper("kubernetes_local.py", "status"), quiet=True)
+            info = json.loads(result.stdout) if result.returncode == 0 else {}
+            phase = info["phase"]
+            self.print("Local Kubernetes: " + phase)
+            for item in info.get("deployments", []):
+                self.print(f"  {item['name']}: {item['ready']}/{item['desired']} replicas ready")
+                failed |= item["ready"] != item["desired"]
+            failed |= phase == "owned_partial_cluster"
+        except (ControlError, KeyError, TypeError, ValueError):
+            failed = True
+            self.print("Local Kubernetes: unknown. Choose Local / Check Kubernetes demo for details.")
+        self.print("For scrape health choose Dashboards / Prometheus targets. Open Grafana to inspect charts.")
+        return int(failed)
+
     def local(self, action):
+        if action in COMPOSE_ACTIONS:
+            return self.compose(action)
         if action == "docker-status":
             executable = shutil.which("docker")
             if not executable: raise ControlError("Docker CLI is missing; open Docker Desktop and check its installation")
@@ -261,6 +351,8 @@ class Controller:
                 "cloud_contacted":False,"docker_engine_contacted":False}
 
     def explain(self):
+        self.print("After a code change: open Docker Desktop, choose your provider, Sign in, then Redeploy. When updating the older GCP release, choose Prepare first. Check status and select Start when you want tenants to sign in.")
+        self.print("Check all service statuses reads both providers, Docker and kind. The Dashboards menu opens billing, logs, Prometheus targets and Grafana.")
         self.print("Terraform creates and changes infrastructure; there is no Terraform server to keep running. Start/Stop apply reviewed scaling changes to the existing deployment. Update rebuilds/tests an image and applies infrastructure changes explicitly.")
         self.print("Docker builds images and runs optional local containers. Kubernetes is a separate local kind demo with fictional data. Prometheus scrapes the selected app; Grafana displays those local metrics. Native cloud consoles show service-wide metrics and retained resources.")
         self.print("Pausing retains databases, images and secrets, so storage charges can remain. Budget alerts are not spending caps. Cost links open provider consoles; this tool makes no Cost Explorer API queries.")
@@ -268,11 +360,15 @@ class Controller:
         return 0
 
     def perform(self, group, action=None, *, attest=False, interactive=False):
+        if action == "redeploy" and group in {"aws", "gcp"}:
+            action = "update"
+        if group == "overview":
+            return self.overview()
         if attest and (group not in {"aws","gcp"} or action not in {"start","update","prepare"}):
             raise ControlError("Offline attestation is available only for Start, Update or GCP Prepare.")
         if group in {"aws","gcp"}:
             if action == "login":return self.login(group)
-            if action == "portal":return self.portal(group)
+            if action in {"portal", "manager"}:return self.portal(group, manager=action == "manager")
             if action == "prepare":return self.prepare_gcp(attest=attest,interactive=interactive)
             return self.cloud(group,action,attest=attest,interactive=interactive)
         if group == "local":return self.local(action)
@@ -302,17 +398,27 @@ class Controller:
         self.print("TicketPilot controls - AWS Singapore / GCP Singapore")
         self.print("Opening this menu starts no services. Start resumes; Update is separate. Exit leaves service state unchanged.")
         while True:
-            choice=self.choose("Main menu",[("aws","AWS controls"),("gcp","GCP controls"),("local","Local Docker and Kubernetes"),("dashboards","Dashboards, services and costs"),("guide","Terraform and stack guide"),("stop-all","Stop all known cloud and local services")],exit_label="Exit controls")
+            choice=self.choose("Main menu",[("aws","AWS controls"),("gcp","GCP controls"),("local","Local Docker and Kubernetes"),("dashboards","Dashboards, services and costs"),("guide","Terraform and stack guide"),("stop-all","Stop all known cloud and local services"),("overview","Check all service statuses (live)")],exit_label="Exit controls")
             if choice is None:return 0
             if choice == "invalid":continue
-            if choice in {"guide","stop-all"}:self.menu_action(choice);continue
+            if choice in {"guide","stop-all","overview"}:self.menu_action(choice);continue
             if choice in {"aws","gcp"}:
-                entries=[("start","Start existing portal"),("stop","Stop portal and cloud scrapes"),("status","Check status"),("monitor-start","Start local Prometheus/Grafana for this provider"),("monitor-stop","Stop local Prometheus/Grafana"),("login","Sign in through browser"),("portal","Open tenant portal"),("update","Update code/infrastructure (build and Terraform)")]
+                entries=[("start","Start existing portal"),("stop","Stop portal and cloud scrapes"),("status","Check status"),("monitor-start","Start local Prometheus/Grafana for this provider"),("monitor-stop","Stop local Prometheus/Grafana"),("login","Sign in through browser"),("portal","Open tenant portal"),("redeploy","Redeploy current code (Docker build and Terraform)")]
                 if choice == "gcp":entries.append(("prepare","Prepare first tenant-login deployment (keeps GCP stopped)"))
+                entries.append(("manager", "Open manager dashboard"))
             elif choice == "local":
                 entries=[("docker-open","Open Docker Desktop"),("docker-status","Show TicketPilot Docker containers"),("stop-local","Stop all local tools (cloud unchanged; demo data disposable)"),("k8s-start","Start and validate isolated Kubernetes demo"),("k8s-status","Check Kubernetes demo"),("k8s-stop","Stop Kubernetes demo (removes fictional data)"),("k8s-forward-app","Forward Kubernetes app: localhost:18080"),("k8s-forward-prometheus","Forward Kubernetes Prometheus: localhost:19090"),("k8s-forward-grafana","Forward Kubernetes Grafana: localhost:13000")]
+                entries += [
+                    ("app-start", "Start local apartment app"),
+                    ("app-rebuild", "Rebuild local app after editing code"),
+                    ("app-stop", "Stop local app"),
+                    ("monitor-start", "Monitor local app with Prometheus and Grafana"),
+                    ("monitor-stop", "Stop Compose monitoring"),
+                ]
             else:
                 entries=[("grafana","Open local Grafana"),("prometheus","Open local Prometheus"),("aws-console","AWS console"),("aws-lambda","AWS Lambda monitoring"),("aws-cloudwatch","AWS CloudWatch logs/metrics"),("aws-ecr","AWS ECR images"),("aws-dynamodb","AWS DynamoDB tables"),("aws-ssm","AWS SSM parameters"),("aws-billing","AWS billing"),("aws-credits","AWS credits"),("aws-budgets","AWS budgets"),("gcp-console","GCP console"),("gcp-cloud-run","GCP Cloud Run monitoring"),("gcp-firestore","GCP Firestore"),("gcp-artifact-registry","GCP container images"),("gcp-logs","GCP logs"),("gcp-billing","GCP billing/budgets/credits"),("k8s-app","Kubernetes app: localhost:18080"),("k8s-prometheus","Kubernetes Prometheus: localhost:19090"),("k8s-grafana","Kubernetes Grafana: localhost:13000")]
+                entries += [("gcp-monitoring", "GCP Cloud Monitoring"), ("gcp-secrets", "GCP Secret Manager"), ("targets", "Prometheus targets and scrape health"), ("local-tenant", "Local tenant portal"),
+                            ("local-manager", "Local manager dashboard"), ("local-health", "Local app health")]
             while True:
                 action=self.choose(choice.upper()+" controls",entries)
                 if action is None:break
@@ -336,6 +442,7 @@ def parser():
         group.add_argument("--confirm-other-offline",action="store_true",help="Permit one guarded attestation retry only after other-provider authentication failed")
     groups.add_parser("local").add_argument("action",choices=LOCAL_ACTIONS)
     groups.add_parser("open").add_argument("action",choices=tuple(LOCAL_URLS)+tuple(AWS_URLS)+tuple(GCP_PATHS))
+    groups.add_parser("overview", help="Read both cloud states, Compose containers and the owned kind demo")
     groups.add_parser("stop-all")
     groups.add_parser("guide")
     return result

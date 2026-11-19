@@ -1,5 +1,7 @@
 # Local Kubernetes demonstration
 
+For the complete local exercise choose **Local Docker and Kubernetes → Start and validate isolated Kubernetes demo**. Use Check Kubernetes demo to see ready replicas. Open a separate launcher window for each Forward action. [Beginner controls](OPERATIONS_QUICKSTART.md)
+
 TicketPilot includes a local kind deployment for demonstrating Kubernetes alongside the separate Terraform cloud paths. It runs on Docker Desktop on this PC and creates no GKE/EKS cluster, cloud load balancer or new cloud billing resource. The GCP site can remain paused throughout this demonstration. Check [deployment status](DEPLOYMENT_STATUS.md) for actual validation and offline state; commands and manifests alone are not evidence of a successful run.
 
 ## What the deployment exercises

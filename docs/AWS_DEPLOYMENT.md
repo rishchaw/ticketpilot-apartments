@@ -1,6 +1,6 @@
 # Deploy TicketPilot to AWS
 
-Verified November 17, 2026 (Asia/Manila). AWS is deployed in Singapore and live apartment acceptance passed, including independent DynamoDB reads and guarded synthetic cleanup. Terraform pause returned HTTP 429 and resume restored HTTP 200. GCP remains paused; its login needs renewal before control-plane changes. No plan was upgraded and paid AI stays disabled. See [deployment evidence](DEPLOYMENT_STATUS.md).
+For the existing installation use **AWS controls → Redeploy current code**. The last recorded AWS release includes tenant login and eight provisioned accounts. It was paused after the image update. Live tenant sign-in on this release still needs an explicit resume and acceptance check. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
 
 ## Architecture and prerequisites
 
@@ -57,7 +57,7 @@ A source change, CI run or successful apply alone is not full deployed acceptanc
 
 The cloud acceptance must use fictional concerns and check manager denial without a token, per-concern tracking/cross-key denial, manager-note isolation, tenant-visible replies/reopening and one-success/one-conflict version updates. Verify persistence independently through DynamoDB by exact synthetic IDs. Cleanup must match only those IDs/content with appropriate preconditions. Do not list real private queues or overwrite a building notice merely to run acceptance.
 
-The public Function URL serves page shells without IAM authentication; private manager APIs and tracking capabilities remain application checks. Unit selection does not verify identity. DynamoDB recent-index updates are eventually consistent; direct key reads verify persistence separately. Keep manager codes/tracking links private.
+The public Function URL reaches FastAPI. The tenant router derives the unit from the signed-in account and requires the tracking key for private concern access. Manager operations verify the separate manager code. DynamoDB recent-index updates are eventually consistent; direct key reads verify persistence separately. Keep manager codes/tracking links private.
 
 The older public smoke check covers pages/access denial and legacy retrieval; it does not replace private apartment writes/persistence checks. Local Lambda emulation and credential-free CI also remain separate evidence from live account access. See [CI/CD](CI_CD.md) and [validation](VALIDATION.md).
 
