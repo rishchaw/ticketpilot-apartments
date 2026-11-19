@@ -1,15 +1,14 @@
 TICKETPILOT APARTMENTS - GCP
 ===========================
-Checkpoint: November 18, 2026 (Asia/Manila).
+Checkpoint: November 19, 2026 (Asia/Manila).
 Run commands from the standalone ticketpilot-aws repository root.
 
 BEGINNER REDEPLOY
 1. In ticketpilot-aws double-click TICKETPILOT.cmd. Open Docker Desktop from Local.
 2. Under GCP controls choose Sign in through browser. Complete both Google
    sign-ins. Keep AWS paused when switching to GCP.
-3. For the retained older revision choose Prepare first tenant-login deployment.
-   It builds and validates the new image, applies Terraform while paused, and
-   provisions eight separate GCP accounts. Wait for both steps to succeed.
+3. Prepare and eight-account provisioning completed on November 19. For normal
+   code updates choose Redeploy current code. Start resumes the existing image.
 4. For later code changes use Redeploy current code. Check status. Choose Start
    existing portal when ready to serve and verify HTTP 200. Open the tenant portal.
 5. Choose Start local Prometheus/Grafana to scrape this provider. Finish with Stop
@@ -19,18 +18,17 @@ Full walkthrough: docs/OPERATIONS_QUICKSTART.md. Code map: docs/CODEBASE_USAGE.m
 
 RECORDED STATUS AND RETAINED URLS
 --------------------------------
-The retained Cloud Run/Firestore deployment was accepted on November 16 and then
-paused with Terraform manual-zero scaling; both URLs returned HTTP503. That old
-revision PREDATES tenant login. The source now has portable eight-account access,
-but no authenticated release has been deployed to GCP. Do not resume the old
-public-intake image. First renew CLI/ADC, deploy the tested authentication release
-while paused, and provision a separate private eight-account GCP registry.
+The authenticated Cloud Run release was prepared and started on November 19.
+Both recorded health URLs returned HTTP 200 with Firestore storage and paid AI off.
+Eight separate tenant accounts were provisioned. Live sign-in, privacy and workflow
+acceptance passed. Independent Firestore reads confirmed two synthetic concerns,
+and both were cleaned up. AWS remained paused with HTTP 429.
 
 Tenant:  https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant
 Manager: https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager
 URLs remain unavailable while paused. See docs/DEPLOYMENT_STATUS.md for actual
 evidence and docs/TENANT_ACCESS.md for accounts and separate provider inventories.
-The target source uses a private Firestore auth collection for password/session
+The deployed source uses a private Firestore auth collection for password/session
 hashes and revocation. No additional hosted identity service is added. Keep the
 GCP credentials file separate from the private AWS inventory; switching providers
 does not migrate accounts, sessions, concerns or tracking links.
@@ -38,8 +36,7 @@ does not migrate accounts, sessions, concerns or tracking links.
 ARCHITECTURE
 ------------
 Cloud Run HTTP container; request-based automatic min0/max1 enabled, MANUAL 0 paused;
-Firestore Standard Native durable records (target auth release adds a private
-authentication collection); Secret Manager; Artifact Registry
+Firestore Standard Native durable records and private authentication collection; Secret Manager; Artifact Registry
 immutable digest; attached runtime service account; Cloud Monitoring/Logging.
 Enabled runtime:1 CPU/512 MiB, concurrency4, timeout30s, manual refresh/queue20, AI off.
 Terraform roots: infra/gcp/bootstrap and infra/gcp/app. Shared domain/UI, provider
@@ -98,9 +95,8 @@ before native scripts/deploy_gcp.py --stage all. No separate prebuild is needed.
 --skip-build --local-image YOUR-LOCAL-IMAGE-TAG explicitly reuses a prevalidated
 image and skips the local emulator check. Native stages remain
 preflight/bootstrap/deploy/all/pause/resume. Deploy preserves saved pause state
-and skips online acceptance while paused. The retained pre-authentication image
-must be replaced by the tested authenticated release and its accounts provisioned
-before any resume. Resume explicitly restores automatic
+and skips online acceptance while paused. The authenticated release and account registry were accepted on November 19.
+Reuse the existing accounts and private inventory when resuming. Resume explicitly restores automatic
 min0/max1. Changing stages alter cloud resources; they retain records, secrets,
 images, identity and state. Preserve matching private states/generated settings.
 

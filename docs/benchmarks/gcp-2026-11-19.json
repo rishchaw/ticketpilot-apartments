@@ -1,0 +1,470 @@
+{
+  "schema_version": 1,
+  "provider": "gcp",
+  "region": "asia-southeast1",
+  "started_at_utc": "2026-11-19T07:09:18.338365+00:00",
+  "finished_at_utc": "2026-11-19T07:09:42.638043+00:00",
+  "method": "One sequential keep-alive HTTP client, 3 warmups then measured requests per endpoint; no retries",
+  "limitations": "Client-observed elapsed time includes network and full response body. First observed requests follow a health preflight. Cold starts are unverified. Tenant database workflows and throughput are outside this sample.",
+  "p95_method": "Nearest-rank over successful measured requests",
+  "checkout_commit": "84e1497a80bf3d1fcd67901c0e629f03b663e330",
+  "recorded_image_digest": "sha256:36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472",
+  "storage_mode": "firestore",
+  "paid_ai_enabled": false,
+  "samples_per_endpoint": 20,
+  "interval_seconds": 0.25,
+  "concurrency": 1,
+  "status": "passed",
+  "endpoints": {
+    "health": {
+      "method": "GET",
+      "path": "/health",
+      "first_observed": {
+        "ms": 88.037,
+        "status": 200,
+        "valid": true
+      },
+      "warmup": {
+        "requests": 3,
+        "successes": 3,
+        "failures": 0,
+        "http_statuses": {
+          "200": 3
+        },
+        "p50_ms": 91.07,
+        "p95_ms": 92.613,
+        "max_ms": 92.613,
+        "samples": [
+          {
+            "ms": 92.613,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 89.799,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.07,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      },
+      "measured": {
+        "requests": 20,
+        "successes": 20,
+        "failures": 0,
+        "http_statuses": {
+          "200": 20
+        },
+        "p50_ms": 91.493,
+        "p95_ms": 94.927,
+        "max_ms": 95.115,
+        "samples": [
+          {
+            "ms": 92.385,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 92.529,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 85.56,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 90.582,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 95.115,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.989,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 89.175,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 85.859,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.259,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 84.208,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.574,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.776,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 86.542,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.771,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.209,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.927,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 89.142,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 85.795,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 84.884,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.21,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      }
+    },
+    "tenant_login_page": {
+      "method": "GET",
+      "path": "/tenant/login",
+      "first_observed": {
+        "ms": 97.138,
+        "status": 200,
+        "valid": true
+      },
+      "warmup": {
+        "requests": 3,
+        "successes": 3,
+        "failures": 0,
+        "http_statuses": {
+          "200": 3
+        },
+        "p50_ms": 97.102,
+        "p95_ms": 98.336,
+        "max_ms": 98.336,
+        "samples": [
+          {
+            "ms": 98.336,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 97.102,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 86.373,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      },
+      "measured": {
+        "requests": 20,
+        "successes": 20,
+        "failures": 0,
+        "http_statuses": {
+          "200": 20
+        },
+        "p50_ms": 95.09,
+        "p95_ms": 110.968,
+        "max_ms": 123.502,
+        "samples": [
+          {
+            "ms": 91.626,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 97.293,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 87.301,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.06,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.346,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 90.997,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 110.968,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 90.779,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 99.109,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 123.502,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.711,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 86.455,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.039,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 99.859,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 96.685,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 100.224,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.486,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 96.377,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 97.481,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 95.468,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      }
+    },
+    "it_demo_retrieval": {
+      "method": "POST",
+      "path": "/api/analyze",
+      "first_observed": {
+        "ms": 95.406,
+        "status": 200,
+        "valid": true
+      },
+      "warmup": {
+        "requests": 3,
+        "successes": 3,
+        "failures": 0,
+        "http_statuses": {
+          "200": 3
+        },
+        "p50_ms": 97.898,
+        "p95_ms": 98.199,
+        "max_ms": 98.199,
+        "samples": [
+          {
+            "ms": 98.199,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.77,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 97.898,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      },
+      "measured": {
+        "requests": 20,
+        "successes": 20,
+        "failures": 0,
+        "http_statuses": {
+          "200": 20
+        },
+        "p50_ms": 93.781,
+        "p95_ms": 107.349,
+        "max_ms": 110.944,
+        "samples": [
+          {
+            "ms": 97.031,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 88.169,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.458,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 92.899,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 89.161,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 88.564,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 96.29,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 107.349,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 93.126,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.105,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 92.898,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.854,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 98.073,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 97.468,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 95.193,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 99.557,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 89.586,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 94.16,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 91.634,
+            "status": 200,
+            "valid": true
+          },
+          {
+            "ms": 110.944,
+            "status": 200,
+            "valid": true
+          }
+        ]
+      }
+    }
+  }
+}

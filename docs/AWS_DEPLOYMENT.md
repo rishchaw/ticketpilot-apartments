@@ -27,7 +27,7 @@ Run from the standalone repository root:
 
 Central deploy builds the Lambda image unless explicitly reusing an accepted image with --skip-build/--local-image, then runs native bootstrap/deploy and apartment acceptance. The native implementation is scripts/deploy_aws.py with preflight, bootstrap, deploy, pause, resume and status stages. The old deploy_aws.ps1 is a legacy path; use the central/native Python lifecycle for the new guards/settings. Check current --help for options.
 
-Deploy/resume changes cloud resources and requires the exclusive-provider guard. GCP remains paused. Its expired authentication is not a successful control-plane check. For the narrow recorded-paused case, --confirm-other-offline is explicit operator attestation plus fresh expected unavailable HTTP results at every known URL. It cannot override authenticated active/traffic-tagged state or a reachable endpoint. Do not delete a record or bypass a failed pause to satisfy this guard. [Operations](PROVIDER_OPERATIONS.md) explains switching and its data boundary.
+Deploy/resume changes cloud resources and requires the exclusive-provider guard. GCP was enabled on November 19. Pause it and verify its state before enabling AWS. For the narrow recorded-paused case, --confirm-other-offline is explicit operator attestation plus fresh expected unavailable HTTP results at every known URL. It cannot override authenticated active/traffic-tagged state or a reachable endpoint. Do not delete a record or bypass a failed pause to satisfy this guard. [Operations](PROVIDER_OPERATIONS.md) explains switching and its data boundary.
 
 The two AWS Terraform roots have independent state:
 

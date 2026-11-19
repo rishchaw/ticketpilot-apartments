@@ -1,3 +1,21 @@
+# GCP authenticated release enabled, November 19, 2026
+
+The user requested GCP startup. Browser CLI and ADC sign-ins were renewed using the existing configuration. AWS was authenticated and confirmed paused with concurrency 0 and HTTP 429. The GCP image passed the isolated Firestore emulator, was promoted by digest and applied with the separate Terraform roots while paused. Eight distinct native Firestore tenant accounts were provisioned, then Cloud Run resumed.
+
+Revision `ticketpilot-apartments-00002-s9x` is Ready with 100% traffic. Accepted digest `sha256:36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472`. Both service URLs returned HTTP 200. Configuration remains 1 vCPU, 512 MiB, automatic min0/max1, request-based billing, manual manager refresh and paid AI disabled. The existing $10 alert budget and provider resources were retained.
+
+Tenant portal [opens here](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant). The [manager dashboard](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/manager) uses the private manager code in local `.env`. GCP tenant credentials stay in `.secrets/gcp-tenant-credentials.json`. Provider account inventories are independent.
+
+Live acceptance passed sign-in, anonymous denial, fixed units, cross-account tracking denial, CSRF/unit-spoof restrictions, private-note isolation, replies/reopening and conflicting updates. Independent exact-ID Firestore reads verified both synthetic concerns, and guarded cleanup deleted both. No existing concern or notice was listed or modified. The private acceptance report remains in `.tools/gcp-deployment-validation.json`.
+
+The initial Prepare applied successfully but hit a Windows Unicode output error before provisioning. State was inspected before continuing. UTF-8 output was fixed, accounts were provisioned, and Start was run. Its first health read timed out after the scaling change. Fresh status and HTTPS health checks confirmed availability. Bounded transport retries were added, and a repeated Start completed with a no-change Terraform plan, both URL checks and read-only route acceptance.
+
+All 451 local tests passed. The GCP benchmark used 20 measured requests per endpoint after warmups. Its results and reproducible later AWS method are in [cloud benchmarks](CLOUD_BENCHMARKS.md). AWS stayed paused throughout. Local Compose monitoring and kind remain stopped.
+
+Earlier checkpoints follow.
+
+---
+
 # Operator review, November 19, 2026
 
 The Windows launcher verified the Singapore AWS portal was paused (HTTP 429). Docker reported the app, Prometheus and Grafana containers exited. The local kind demo reported stopped. GCP's authenticated Cloud Run read required a new browser sign-in, so its current control-plane state is unknown. Its last recorded paused URLs returned HTTP 503. AWS has the eight-unit authenticated release. The retained GCP revision requires the Prepare workflow. [Beginner guide](OPERATIONS_QUICKSTART.md) and [codebase review](CODEBASE_USAGE.md).

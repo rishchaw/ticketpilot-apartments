@@ -36,7 +36,7 @@ The existing PC environment and private .env should be preserved. setup_local.py
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
 ```
 
-For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follow [provider operations](PROVIDER_OPERATIONS.md) before switching. Default deploy builds/validates the selected image; optional monitoring starts separately. Both recorded sites were paused. GCP Prepare upgrades the older revision and provisions its accounts. Provider switching preserves independent datasets; it does not migrate concerns or their tracking links.
+For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follow [provider operations](PROVIDER_OPERATIONS.md) before switching. Default deploy builds/validates the selected image; optional monitoring starts separately. GCP was started and its eight-account workflow verified on November 19 while AWS remained paused. Prepare is already complete for this GCP installation. Provider switching preserves independent datasets; it does not migrate concerns or their tracking links.
 
 ## Use Prometheus and Grafana
 

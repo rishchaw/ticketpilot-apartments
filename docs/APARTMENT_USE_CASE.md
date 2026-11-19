@@ -2,7 +2,7 @@
 
 TicketPilot serves a family-managed apartment building with eight confirmed units: **1A, 1B, 2A, 2B, 2C, 3A, 3B and 3C**. It replaces concerns buried in a Messenger group chat with an English/Filipino mobile form and one manager queue.
 
-The source now includes closed tenant accounts and per-account concern ownership. Read [deployment status](DEPLOYMENT_STATUS.md) for the accepted cloud image and current pause state. AWS has the authenticated image and eight accounts. Hosted sign-in acceptance is pending a resume. The launcher provides separate tenant and manager links for each provider. GCP retains an older paused revision. [Operator guide](OPERATIONS_QUICKSTART.md)
+The deployed code includes closed tenant accounts and per-account concern ownership. Both clouds have an authenticated image and eight separate accounts. AWS remains paused with hosted sign-in acceptance pending a resume. GCP is enabled and passed live tenant/manager acceptance on November 19. The launcher provides separate tenant and manager links for each provider. [Deployment status](DEPLOYMENT_STATUS.md) · [Operator guide](OPERATIONS_QUICKSTART.md)
 
 ## Tenant and manager workflow
 

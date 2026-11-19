@@ -1,3 +1,9 @@
+# Live GCP validation, November 19, 2026
+
+All 451 local tests passed after the GCP transport-retry, Windows output and benchmark changes. The authenticated GCP image passed real Firestore emulator checks and live tenant/manager acceptance. Independent Firestore reads and guarded cleanup confirmed both synthetic records. Both service URLs returned HTTP 200 while AWS remained paused. [Deployment evidence](DEPLOYMENT_STATUS.md) · [Benchmark results](CLOUD_BENCHMARKS.md)
+
+---
+
 # Current validation - November 19, 2026
 
 Use **Check all service statuses (live)** for current availability. CI verifies the app and disposable stacks. A local call trace exercised a fictional tenant login and concern creation and a separate IT demo analysis request. The specific modules are listed in [the code review](CODEBASE_USAGE.md#observed-locally). A live Bedrock attempt returned HTTP 403 during AWS account verification and exercised the cited fallback. [Controls](OPERATIONS_QUICKSTART.md) · [Bedrock result](RAG_IMPLEMENTATION.md)

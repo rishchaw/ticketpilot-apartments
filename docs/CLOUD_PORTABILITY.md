@@ -1,6 +1,6 @@
 # Cloud portability and deployment choices
 
-The portable application runs on each provider using its own data and credentials. The last recorded states were AWS paused on the tenant-login release and GCP paused on its earlier revision. For a switch to GCP complete **Prepare first tenant-login deployment** before Start. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
+The portable application runs on each provider using its own data and credentials. On November 19 GCP was prepared and enabled with live tenant-login acceptance. AWS remains paused on its authenticated release. Switching providers preserves their independent datasets. [Beginner guide](OPERATIONS_QUICKSTART.md) · [Deployment evidence](DEPLOYMENT_STATUS.md) · [Measured GCP baseline](CLOUD_BENCHMARKS.md)
 
 ## One application, native cloud adapters
 

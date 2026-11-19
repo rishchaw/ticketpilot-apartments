@@ -1,8 +1,8 @@
 # GCP architecture and rationale
 
-Use **GCP controls → Prepare** for the retained older revision. After a successful preparation, **Start** enables the site and **Open manager dashboard** opens the queue. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [file-to-service map](CODEBASE_USAGE.md).
+GCP is enabled with the authenticated image and eight separate Firestore accounts. Use **Stop** to pause, **Start** to resume and **Redeploy current code** to publish changes. [Beginner guide](OPERATIONS_QUICKSTART.md) · [File-to-service map](CODEBASE_USAGE.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
 
-Checkpoint November 18, 2026 (Asia/Manila): the retained Cloud Run revision was accepted on November 16 and paused with manual-zero scaling. It predates tenant account authentication and must not be resumed as the new protected portal. The updated source/diagram below describes the next authenticated deployment; no GCP authentication rollout is claimed. Renew CLI/ADC access, deploy the tested release while paused and provision a separate eight-account GCP registry before any explicit resume. See [deployment status](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
+Checkpoint November 19, 2026 (Asia/Manila). Revision `ticketpilot-apartments-00002-s9x` is Ready with 100% of service traffic. Both recorded service URLs return HTTP 200. The image digest is `sha256:36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472`. Eight accounts were provisioned while paused, then the site resumed. Protected workflow acceptance, independent exact-ID Firestore reads and cleanup of both synthetic concerns passed. [Deployment status](DEPLOYMENT_STATUS.md) · [Tenant access](TENANT_ACCESS.md)
 
 ```mermaid
 flowchart TB
@@ -51,7 +51,7 @@ Use regional Artifact Registry with digest deployment, retention of the deployed
 
 ## Pause and spending boundaries
 
-First deploy the tested authentication release and provision its separate GCP accounts while paused. The retained pre-authentication revision is not eligible for direct resume. Terraform paused=true selects MANUAL scaling with zero instances; an explicitly verified resume of the authenticated release selects paused=false and restores automatic min0/max1. Deploy preserves the saved pause state. The address, records, images, secrets, identity and budget remain. Idle automatic scale-down alone still permits another request to start the service.
+The authentication release and separate GCP account provisioning completed on November 19. Terraform paused=true selects MANUAL scaling with zero instances; an explicitly verified resume of the authenticated release selects paused=false and restores automatic min0/max1. Deploy preserves the saved pause state. The address, records, images, secrets, identity and budget remain. Idle automatic scale-down alone still permits another request to start the service.
 
 Manual-zero lets in-flight requests finish and rejects new normal service-URL requests. Traffic-tag-only revisions need separate inspection before claiming every endpoint offline. A scaling-mode change does not require a new image revision. Keep state/generated variables and reconcile console changes. [Manual scaling](https://docs.cloud.google.com/run/docs/configuring/services/manual-scaling).
 
@@ -63,4 +63,4 @@ Cloud Monitoring is the native view for service request counts, errors, latency,
 
 Optional local monitor-start selects one active cloud with 300-second scraping; pause stops that monitoring. Requests can still start an enabled instance, so manager refresh remains manual with queue20. Process counters and bounded queues are not lifetime analytics. Compose/kind dashboards remain separate local demonstrations.
 
-Historical November 16 acceptance covered fictional concern capabilities, private-note isolation, replies/reopening, version conflicts and independent exact-ID Firestore reads. It predates the new tenant-account flow and does not establish hosted authentication acceptance. Updated local/emulator checks and a future GCP rollout must be recorded separately; no provider account or record migration is implicit. See [GCP guide](gcp/README.txt), [operations](PROVIDER_OPERATIONS.md) and [portability](CLOUD_PORTABILITY.md).
+November 19 live acceptance exercised tenant sign-in, ownership restrictions, CSRF and unit-spoof denial, manager note isolation, replies/reopening and one-success/one-conflict updates. Independent Firestore reads verified the two synthetic concerns and guarded cleanup deleted both. Existing concerns and notices were preserved. The earlier November 16 run predates tenant accounts. [GCP guide](gcp/README.txt) · [Operations](PROVIDER_OPERATIONS.md) · [Portability](CLOUD_PORTABILITY.md)

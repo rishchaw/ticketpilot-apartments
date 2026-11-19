@@ -6,19 +6,19 @@
 
 1. In File Explorer open the standalone `ticketpilot-aws` folder. Look for `TICKETPILOT.cmd` next to `README.md`. Double-click the launcher.
 2. Choose **Check all service statuses (live)**. It queries both recorded cloud services, the project's Compose containers and the local kind demo. An expired login can make one result **unknown** while the others still report. Opening the main menu alone starts nothing.
-3. Choose **AWS controls** or **GCP controls** for the site you want. **0** goes back. The last recorded state was paused on both clouds. [Deployment evidence](DEPLOYMENT_STATUS.md)
+3. Choose **AWS controls** or **GCP controls** for the site you want. **0** goes back. On November 19 GCP was started and AWS remained paused. [Deployment evidence](DEPLOYMENT_STATUS.md)
 
 If you prefer PowerShell, open that folder in File Explorer, type `powershell` in the address bar, press Enter and run `.\TICKETPILOT.cmd`. The launcher finds its own Python environment. On a fresh clone, complete [local setup](STACK_GUIDE.md#fresh-clone-setup). A public clone contains the source. Operating an existing cloud deployment also requires its private Terraform state, settings, deployment records and matching secrets from the original PC or backup.
 
 ## Bring back the existing AWS site
 
-Choose **AWS controls → Sign in through browser** if your session expired. Use the existing `ticketpilot` profile. Choose **Start existing portal**, then **Check status**. Look for `paused: false` and a successful health response (HTTP 200). Choose **Open tenant portal** to see the login screen or **Open manager dashboard** to manage concerns. For a tenant check, sign in using that unit's privately delivered credentials. [Tenant access](TENANT_ACCESS.md)
+GCP is currently serving. Choose **GCP controls → Stop portal and cloud scrapes**, then **Check status** before switching to AWS. Choose **AWS controls → Sign in through browser** if your session expired. Use the existing `ticketpilot` profile. Choose **Start existing portal**, then **Check status**. Look for `paused: false` and a successful health response (HTTP 200). Choose **Open tenant portal** to see the login screen or **Open manager dashboard** to manage concerns. For a tenant check, sign in using that unit's privately delivered credentials. [Tenant access](TENANT_ACCESS.md)
 
 ## Redeploy after changing code
 
 1. Save the version you want to publish in this folder. The launcher builds local files. If you edited the code on GitHub instead, bring those changes into this checkout first. Keep your private `.env`, `.secrets`, `.tools` deployment records and Terraform state. Check the commit and its tests in [GitHub Actions](https://github.com/rishchaw/ticketpilot-apartments/actions/workflows/ci.yml).
 2. Choose **Local Docker and Kubernetes → Open Docker Desktop**. Wait until the Linux engine is ready. Open **Check all service statuses (live)**. Stop the other provider if it is serving. Renew any required login in its provider menu.
-3. **For AWS**, choose **AWS controls → Redeploy current code**. **For GCP's retained older revision**, choose **GCP controls → Sign in through browser**, complete both Google sign-ins, then **Prepare first tenant-login deployment**. Prepare redeploys while paused and provisions the separate GCP accounts. For subsequent code changes use **GCP controls → Redeploy current code**.
+3. **For AWS**, choose **AWS controls → Redeploy current code**. **For GCP**, renew both Google sign-ins if needed and choose **GCP controls → Redeploy current code**. The initial Prepare and eight-account provisioning completed on November 19.
 4. Wait for the action to finish. Docker builds and exercises the provider image. The scripts review and apply Terraform plans and select the new image by digest. Choosing Redeploy authorizes that operation. There is no second Apply button. A failing stage may follow a successful cloud change, so use **Check status** before retrying.
 5. If you want the site available and Status says it is paused, select **Start existing portal**, then **Check status** again. Look for HTTP 200 on the health check. Open the tenant and manager pages. AWS and GCP have separate tenant credentials and concern histories.
 
@@ -28,12 +28,14 @@ PowerShell shortcuts from the project folder perform the same actions. Pick the 
 | --- | --- |
 | Show status across the project | `.\TICKETPILOT.cmd overview` |
 | Publish current code to AWS | `.\TICKETPILOT.cmd aws redeploy` |
-| Upgrade the older paused GCP site and create its accounts | `.\TICKETPILOT.cmd gcp prepare` |
+| Prepare an initial GCP tenant-login deployment, already completed on this PC | `.\TICKETPILOT.cmd gcp prepare` |
 | Publish later code changes to GCP | `.\TICKETPILOT.cmd gcp redeploy` |
 | Resume or pause AWS | `.\TICKETPILOT.cmd aws start` or `.\TICKETPILOT.cmd aws stop` |
 | Resume or pause GCP | `.\TICKETPILOT.cmd gcp start` or `.\TICKETPILOT.cmd gcp stop` |
 
 If the other provider's status cannot be verified, use its **Sign in through browser** and **Check status**. The command output explains the problem if a provider reports an active site, mismatched account, missing state, or unexpected image. [Provider operations](PROVIDER_OPERATIONS.md)
+
+For how GCP was started and how to repeat the later AWS measurement, read the [deployment and benchmark report](CLOUD_BENCHMARKS.md).
 
 ## Monitor a deployment
 

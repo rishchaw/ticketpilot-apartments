@@ -1,6 +1,6 @@
 # Tenant access and private account administration
 
-The source now provides eight approved tenant accounts, fixed unit ownership and private browser sessions. Check [deployment status](DEPLOYMENT_STATUS.md) before treating these changes as live. The authenticated image has been applied to AWS with eight provisioned accounts, while preserving the user's requested pause. GCP remains paused and has not received this authentication release. Do not resume either cloud merely to provision accounts or renew a CLI login.
+Both providers have eight approved tenant accounts, fixed unit ownership and private browser sessions. AWS remains paused. On November 19 the authenticated release and separate account registry were deployed to GCP and live sign-in/workflow acceptance passed. The GCP site is enabled. [Deployment status](DEPLOYMENT_STATUS.md)
 
 ## Accounts and delivery
 
@@ -49,7 +49,7 @@ The same authentication modules use a separate SQLite table locally, private Dyn
 
 Use a separate private inventory for each environment, such as `.secrets/gcp-tenant-credentials.json` for an intentionally configured GCP deployment and `.secrets/local-tenant-credentials.json` for local development. Account/session data is not replicated or migrated when switching providers. Local browser, Lambda emulator, Firestore emulator and kind validation generate isolated fictional accounts instead of reading the AWS inventory.
 
-Choose **GCP controls → Prepare first tenant-login deployment**. It deploys the protected release while paused and runs `scripts/manage_tenants.py gcp provision`. GCP uses `.secrets/gcp-tenant-credentials.json`. Subsequent GCP account administration uses `gcp` in the same wrapper. [Provider controls](OPERATIONS_QUICKSTART.md)
+The initial **GCP controls → Prepare first tenant-login deployment** rollout completed on November 19. It applied the protected image while paused and provisioned eight separate Firestore accounts. GCP uses `.secrets/gcp-tenant-credentials.json`. Routine Start, Stop and Redeploy reuse them. Subsequent GCP account administration uses `gcp` in the same wrapper. [Provider controls](OPERATIONS_QUICKSTART.md)
 
 ## First login for the local Docker app
 

@@ -1,6 +1,6 @@
 # Provider operations runbook
 
-Open `TICKETPILOT.cmd` for daily operations. **Check all service statuses (live)** queries each provider independently, plus Compose and kind. The last recorded AWS and GCP deployments were paused. GCP still needs its **Prepare** operation before its first tenant-login rollout. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
+Open `TICKETPILOT.cmd` for daily operations. **Check all service statuses (live)** queries each provider independently, plus Compose and kind. On November 19 GCP was enabled after Prepare, eight-account provisioning and live Firestore acceptance. AWS remains paused. [Beginner guide](OPERATIONS_QUICKSTART.md) · [Deployment evidence](DEPLOYMENT_STATUS.md) · [Benchmark baseline](CLOUD_BENCHMARKS.md)
 
 ## Shared interface
 
@@ -55,13 +55,13 @@ When authenticated status of an otherwise recorded-paused provider is unavailabl
 .\.venv\Scripts\python.exe scripts/cloud.py aws deploy --profile ticketpilot
 ```
 
-For the specific recorded-paused/expired-GCP case, an explicit operator may instead invoke the guarded exception:
+Only for a genuinely recorded-paused provider with expired authentication may an explicit operator invoke the guarded exception. The active GCP deployment must be paused before switching to AWS.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/cloud.py aws deploy --profile ticketpilot --confirm-other-offline
 ```
 
-When switching to GCP, complete GCP Prepare while paused and provision its accounts first. For a subsequent switch to that prepared release:
+GCP Prepare and account provisioning completed on November 19. A subsequent switch to that prepared release uses the existing accounts and image.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot

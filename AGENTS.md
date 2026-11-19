@@ -1,4 +1,12 @@
-# Operator controls and validation - November 19, 2026
+# GCP enabled by user request - November 19, 2026
+
+The user explicitly requested starting GCP, superseding the earlier pause request for GCP. CLI and ADC sign-in were renewed. Authenticated image digest 36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472 is Ready in revision ticketpilot-apartments-00002-s9x with 100% traffic. Eight separate GCP accounts were provisioned while paused, then resume succeeded. Both health URLs returned 200 with Firestore and paid AI disabled. Live tenant/manager acceptance and independent exact-ID Firestore persistence passed; both synthetic concerns were cleaned up. Leave GCP enabled with min0/max1 and keep AWS paused. AWS authenticated state confirmed concurrency0/HTTP429. Local Compose monitoring and kind remain stopped.
+
+Use .secrets/gcp-tenant-credentials.json privately. Do not reset accounts during lifecycle work. A bounded GCP latency baseline and later AWS comparison method are in docs/CLOUD_BENCHMARKS.md. The AWS comparison remains pending the later provider switch. The deployment recovered a Windows Unicode output error and transient health ReadTimeout. UTF-8 console settings and bounded transport retries now cover those failures. Local regression passed451tests.
+
+# Earlier operator controls checkpoint - November 19, 2026
+
+The GCP-enabled entry above supersedes this earlier pause checkpoint.
 
 Use TICKETPILOT.cmd and docs/OPERATIONS_QUICKSTART.md for explicit provider Start/Stop/Status/Update and local tools. Menu startup and --check must not contact providers or Docker. Keep both clouds and real local services paused under the current stop request. GCP still needs its explicit authenticated-image Prepare workflow with --leave-paused and separate native account provisioning before Start is permitted. Do not bypass release/account guards or reset tenant passwords during lifecycle operations.
 

@@ -1,6 +1,6 @@
 # Deploy TicketPilot to Google Cloud
 
-For this existing project use **GCP controls → Sign in through browser → Prepare first tenant-login deployment**. Wait for account provisioning to finish before Start. Subsequent releases use **Redeploy current code**. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md). The lower-level commands below are for operators inspecting the individual stages.
+The existing GCP site was prepared and started on November 19, with eight accounts and live workflow acceptance. Use **GCP controls → Stop portal and cloud scrapes** to pause it, **Start existing portal** to resume, and **Redeploy current code** for code changes. **Prepare first tenant-login deployment** is an initial rollout operation already completed here. See the [beginner guide](OPERATIONS_QUICKSTART.md), [deployment evidence](DEPLOYMENT_STATUS.md) and [latency baseline](CLOUD_BENCHMARKS.md). The lower-level commands below explain the individual stages.
 
 The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
 

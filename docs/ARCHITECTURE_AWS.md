@@ -2,7 +2,7 @@
 
 To operate this diagram use **AWS controls** for Lambda and **Dashboards, services and costs** for DynamoDB, ECR, SSM and CloudWatch. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [file-to-service map](CODEBASE_USAGE.md).
 
-Checkpoint November 18, 2026 (Asia/Manila): the tenant-authentication image (digest prefix 722722a0) is deployed to AWS Singapore and intentionally paused with Function URL HTTP429. Eight admitted DynamoDB accounts and individual private handouts are ready. The initial 312 local tests, real browser workflow and Lambda emulator passed; hosted tenant login was not exercised while the requested stop was preserved. GCP retains an older paused revision. See [deployment evidence](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
+Checkpoint November 18, 2026 (Asia/Manila): the tenant-authentication image (digest prefix 722722a0) is deployed to AWS Singapore and intentionally paused with Function URL HTTP429. Eight admitted DynamoDB accounts and individual private handouts are ready. The initial 312 local tests, real browser workflow and Lambda emulator passed; hosted tenant login was not exercised while the requested stop was preserved. GCP was subsequently prepared and started on November 19. See [deployment evidence](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
 
 ```mermaid
 flowchart TB
