@@ -1,6 +1,6 @@
 # Tenant access and private account administration
 
-Both providers have eight approved tenant accounts, fixed unit ownership and private browser sessions. AWS remains paused. On November 19 the authenticated release and separate account registry were deployed to GCP and live sign-in/workflow acceptance passed. The GCP site is enabled. [Deployment status](DEPLOYMENT_STATUS.md)
+Both providers have eight approved tenant accounts, fixed unit ownership and private browser sessions. AWS remains paused. On November 19 the authenticated release and separate account registry were deployed to GCP and live sign-in/workflow acceptance passed. The GCP site was subsequently paused at the user’s request. [Deployment status](DEPLOYMENT_STATUS.md)
 
 ## Accounts and delivery
 

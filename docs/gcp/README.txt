@@ -2,6 +2,12 @@ TICKETPILOT APARTMENTS - GCP
 ===========================
 Checkpoint: November 19, 2026 (Asia/Manila).
 Run commands from the standalone ticketpilot-aws repository root.
+If you are in ticketpilot-ai, use .\ticketpilot-aws\TICKETPILOT.cmd gcp stop,
+or enter ticketpilot-aws first to use the shorter .\TICKETPILOT.cmd commands.
+
+Latest operation: GCP was paused after its verified startup. Terraform applied
+manual scaling with zero instances; both recorded health URLs returned HTTP 503.
+The image, eight accounts, records and Terraform state are retained.
 
 BEGINNER REDEPLOY
 1. In ticketpilot-aws double-click TICKETPILOT.cmd. Open Docker Desktop from Local.

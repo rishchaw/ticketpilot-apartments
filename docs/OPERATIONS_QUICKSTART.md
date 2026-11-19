@@ -6,13 +6,32 @@
 
 1. In File Explorer open the standalone `ticketpilot-aws` folder. Look for `TICKETPILOT.cmd` next to `README.md`. Double-click the launcher.
 2. Choose **Check all service statuses (live)**. It queries both recorded cloud services, the project's Compose containers and the local kind demo. An expired login can make one result **unknown** while the others still report. Opening the main menu alone starts nothing.
-3. Choose **AWS controls** or **GCP controls** for the site you want. **0** goes back. On November 19 GCP was started and AWS remained paused. [Deployment evidence](DEPLOYMENT_STATUS.md)
+3. Choose **AWS controls** or **GCP controls** for the site you want. **0** goes back. On November 19 GCP startup was verified, then GCP was paused at the user’s request. AWS was last verified paused. [Deployment evidence](DEPLOYMENT_STATUS.md)
 
 If you prefer PowerShell, open that folder in File Explorer, type `powershell` in the address bar, press Enter and run `.\TICKETPILOT.cmd`. The launcher finds its own Python environment. On a fresh clone, complete [local setup](STACK_GUIDE.md#fresh-clone-setup). A public clone contains the source. Operating an existing cloud deployment also requires its private Terraform state, settings, deployment records and matching secrets from the original PC or backup.
 
+## Run commands from the correct folder
+
+If your PowerShell prompt ends in `ticketpilot-ai>`, use the child-folder launcher path.
+
+```powershell
+.\ticketpilot-aws\TICKETPILOT.cmd gcp stop
+.\ticketpilot-aws\TICKETPILOT.cmd gcp status
+```
+
+You can also enter the standalone project folder once.
+
+```powershell
+Set-Location -LiteralPath '.\ticketpilot-aws'
+.\TICKETPILOT.cmd gcp stop
+.\TICKETPILOT.cmd gcp status
+```
+
+After entering `ticketpilot-aws`, use the shorter commands in the tables below. The same launcher accepts `gcp start`, `gcp redeploy` and `overview`. The launcher resolves its own Python environment and helpers from its folder. The parent-folder `--check` and GCP stop paths were verified on November 19.
+
 ## Bring back the existing AWS site
 
-GCP is currently serving. Choose **GCP controls → Stop portal and cloud scrapes**, then **Check status** before switching to AWS. Choose **AWS controls → Sign in through browser** if your session expired. Use the existing `ticketpilot` profile. Choose **Start existing portal**, then **Check status**. Look for `paused: false` and a successful health response (HTTP 200). Choose **Open tenant portal** to see the login screen or **Open manager dashboard** to manage concerns. For a tenant check, sign in using that unit's privately delivered credentials. [Tenant access](TENANT_ACCESS.md)
+Check GCP status before switching. If it is serving, choose **GCP controls → Stop portal and cloud scrapes**, then **Check status** before switching to AWS. Choose **AWS controls → Sign in through browser** if your session expired. Use the existing `ticketpilot` profile. Choose **Start existing portal**, then **Check status**. Look for `paused: false` and a successful health response (HTTP 200). Choose **Open tenant portal** to see the login screen or **Open manager dashboard** to manage concerns. For a tenant check, sign in using that unit's privately delivered credentials. [Tenant access](TENANT_ACCESS.md)
 
 ## Redeploy after changing code
 

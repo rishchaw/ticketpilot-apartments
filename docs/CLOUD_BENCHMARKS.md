@@ -1,6 +1,6 @@
 # Cloud deployment and latency measurements
 
-GCP was prepared and enabled on November 19, 2026. AWS stayed paused. The GCP tenant portal is [available here](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant). Its eight unit accounts use the private GCP inventory on the operator PC. [Deployment evidence](DEPLOYMENT_STATUS.md)
+GCP was prepared and enabled on November 19, 2026. AWS stayed paused. The GCP tenant URL is [retained here](https://ticketpilot-apartments-xliyw4o22q-as.a.run.app/tenant). GCP was subsequently paused at the user’s request. Its eight unit accounts use the private GCP inventory on the operator PC. [Deployment evidence](DEPLOYMENT_STATUS.md)
 
 ## How this GCP release was started
 

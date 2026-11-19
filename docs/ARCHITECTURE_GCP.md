@@ -1,6 +1,6 @@
 # GCP architecture and rationale
 
-GCP is enabled with the authenticated image and eight separate Firestore accounts. Use **Stop** to pause, **Start** to resume and **Redeploy current code** to publish changes. [Beginner guide](OPERATIONS_QUICKSTART.md) · [File-to-service map](CODEBASE_USAGE.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
+GCP retains the authenticated image and eight separate Firestore accounts. It was paused at the user’s request after live acceptance. Use **Stop** to pause, **Start** to resume and **Redeploy current code** to publish changes. [Beginner guide](OPERATIONS_QUICKSTART.md) · [File-to-service map](CODEBASE_USAGE.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
 
 Checkpoint November 19, 2026 (Asia/Manila). Revision `ticketpilot-apartments-00002-s9x` is Ready with 100% of service traffic. Both recorded service URLs return HTTP 200. The image digest is `sha256:36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472`. Eight accounts were provisioned while paused, then the site resumed. Protected workflow acceptance, independent exact-ID Firestore reads and cleanup of both synthetic concerns passed. [Deployment status](DEPLOYMENT_STATUS.md) · [Tenant access](TENANT_ACCESS.md)
 

@@ -2,12 +2,14 @@
 
 Eight households use a mobile portal in English or Filipino to report water interruptions, repairs, billing questions and renewal requests. Each tenant signs in, submits a concern and saves a private tracking link. The manager sees one queue, posts notices, assigns work and sends updates through the portal.
 
-**On the existing Windows PC, double-click `TICKETPILOT.cmd` in the `ticketpilot-aws` folder.** Choose **Check all service statuses (live)** to see which deployment is enabled and which local services are running. The GCP site is currently enabled. Use **GCP controls → Stop portal and cloud scrapes** to take it offline, then **Start existing portal** to resume it later. Pause GCP before switching to AWS. To publish changed code, choose **Redeploy current code**. [Step-by-step instructions](docs/OPERATIONS_QUICKSTART.md)
+**On the existing Windows PC, double-click `TICKETPILOT.cmd` in the `ticketpilot-aws` folder.** Choose **Check all service statuses (live)** to see which deployment is enabled and which local services are running. The GCP site was paused after its verified rollout. Use **GCP controls → Stop portal and cloud scrapes** to take it offline, then **Start existing portal** to resume it later. Pause GCP before switching to AWS. To publish changed code, choose **Redeploy current code**. [Step-by-step instructions](docs/OPERATIONS_QUICKSTART.md)
+
+If your PowerShell prompt ends in `ticketpilot-ai>`, the launcher is one folder deeper. To pause GCP from that location run `.\ticketpilot-aws\TICKETPILOT.cmd gcp stop`. For the short `.\TICKETPILOT.cmd` commands, first enter `ticketpilot-aws`.
 
 | Where to run it | What runs there | Last recorded deployment |
 | --- | --- | --- |
 | AWS Singapore | Lambda Function URL, DynamoDB, SSM, ECR and CloudWatch | Paused. The tenant-login image and eight accounts were provisioned. Hosted login acceptance is pending a resume. |
-| GCP Singapore | Cloud Run, Firestore, Secret Manager, Artifact Registry and Cloud Logging | Active. Tenant-login release and eight accounts verified with live Firestore acceptance on November 19. |
+| GCP Singapore | Cloud Run, Firestore, Secret Manager, Artifact Registry and Cloud Logging | Paused after verified startup. Tenant-login release and eight accounts passed live Firestore acceptance on November 19. |
 | Local Docker | The app with SQLite, plus optional Prometheus and Grafana | The menu controls these on this PC. |
 | Local Kubernetes | A kind cluster with the app, Prometheus, Grafana and a fictional SQLite volume | Optional portfolio demo. Its Stop control removes the demo data. |
 

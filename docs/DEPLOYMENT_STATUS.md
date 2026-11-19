@@ -1,3 +1,13 @@
+# GCP stopped from the parent folder, November 19, 2026
+
+The user attempted `.\TICKETPILOT.cmd gcp stop` while PowerShell was in `ticketpilot-ai`. The launcher is inside `ticketpilot-aws`. The corrected `.\ticketpilot-aws\TICKETPILOT.cmd gcp stop` was run successfully from that parent folder. The same parent-folder path passed `--check`.
+
+Terraform applied a plan with 0 additions, 1 existing Cloud Run service update and 0 deletions. Authenticated verification confirmed `paused=true`, manual scaling, zero manual instances, no traffic tags and HTTP 503 at both known health URLs. Local cloud Prometheus/Grafana were stopped with volumes retained. The GCP image, eight accounts, Firestore data and private Terraform state are retained. AWS was last verified paused and this stop targeted only GCP.
+
+The [beginner guide](OPERATIONS_QUICKSTART.md#run-commands-from-the-correct-folder) now shows commands for both the parent and standalone folders. The earlier verified startup and benchmark evidence follow.
+
+---
+
 # GCP authenticated release enabled, November 19, 2026
 
 The user requested GCP startup. Browser CLI and ADC sign-ins were renewed using the existing configuration. AWS was authenticated and confirmed paused with concurrency 0 and HTTP 429. The GCP image passed the isolated Firestore emulator, was promoted by digest and applied with the separate Terraform roots while paused. Eight distinct native Firestore tenant accounts were provisioned, then Cloud Run resumed.

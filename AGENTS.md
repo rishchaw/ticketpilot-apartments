@@ -1,3 +1,9 @@
+# GCP paused after user stop attempt - November 19, 2026
+
+The user attempted to stop GCP from the parent ticketpilot-ai folder. The launcher is in ticketpilot-aws. The intended stop was run successfully from the parent using .\ticketpilot-aws\TICKETPILOT.cmd gcp stop. Terraform applied only the existing Cloud Run scaling change. Authenticated verification confirmed manual scaling with zero manual instances and HTTP503 at both recorded URLs. Compose cloud monitoring stopped with volumes retained. Leave GCP paused until the user requests startup again. AWS remains last verified paused, and this GCP stop did not operate on AWS. Retain the authenticated image, eight accounts, real data and Terraform state.
+
+Use the parent-folder launcher path when the shell prompt ends in ticketpilot-ai. Inside ticketpilot-aws use .\TICKETPILOT.cmd. The parent-folder --check passed without cloud or Docker engine contact. See docs/OPERATIONS_QUICKSTART.md.
+
 # GCP enabled by user request - November 19, 2026
 
 The user explicitly requested starting GCP, superseding the earlier pause request for GCP. CLI and ADC sign-in were renewed. Authenticated image digest 36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472 is Ready in revision ticketpilot-apartments-00002-s9x with 100% traffic. Eight separate GCP accounts were provisioned while paused, then resume succeeded. Both health URLs returned 200 with Firestore and paid AI disabled. Live tenant/manager acceptance and independent exact-ID Firestore persistence passed; both synthetic concerns were cleaned up. Leave GCP enabled with min0/max1 and keep AWS paused. AWS authenticated state confirmed concurrency0/HTTP429. Local Compose monitoring and kind remain stopped.
