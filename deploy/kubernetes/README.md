@@ -1,4 +1,4 @@
-# Local Kubernetes portfolio manifests
+# Local Kubernetes manifests
 
 From the project launcher choose **Local Docker and Kubernetes → Start and validate isolated Kubernetes demo**, then use **Forward** for the desired service. [Kubernetes operations and ports](../../docs/KUBERNETES.md)
 

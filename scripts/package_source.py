@@ -13,8 +13,9 @@ ROOT_FILES = (
 )
 ASSET_FILES = ("artifacts/model_numpy.npz", "artifacts/vectorizer.joblib", "data/knowledge_base.json")
 SOURCE_DIRECTORIES = ("ticketpilot", "scripts", "tests", "monitoring", "docs", "infra", "deploy", ".github", ".cursor/rules")
-BLOCKED_DIRECTORIES = {".terraform", "__pycache__", ".pytest_cache", ".tools", ".venv", ".secrets", ".aws", ".gcloud", ".git", "dist"}
+BLOCKED_DIRECTORIES = {".terraform", "__pycache__", ".pytest_cache", ".tools", ".venv", ".secrets", ".aws", ".gcloud", ".git", ".local-notes", "dist"}
 BLOCKED_PATTERNS = (
+    "resume_study_guide.md",
     "*.pyc", "*.tfvars", "*.tfvars.json", "*.tfplan", "*.tfbackend", "*.tfstate*",
     "*.db", "*.db-shm", "*.db-wal", "*.pem", "*.key", "*.p12", "*.pfx",
     "gha-creds-*.json", "application_default_credentials.json", "credentials.json",

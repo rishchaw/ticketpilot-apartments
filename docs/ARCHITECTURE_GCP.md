@@ -1,14 +1,14 @@
 # GCP architecture and rationale
 
-GCP retains the authenticated image and eight separate Firestore accounts. It was paused at the user’s request after live acceptance. Use **Stop** to pause, **Start** to resume and **Redeploy current code** to publish changes. [Beginner guide](OPERATIONS_QUICKSTART.md) · [File-to-service map](CODEBASE_USAGE.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
+The GCP deployment uses Cloud Run and Firestore in Singapore. Shared application routes and record contracts are packaged for an HTTP server. [Operations](OPERATIONS_QUICKSTART.md) · [Code map](CODEBASE_USAGE.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
 
-Checkpoint November 19, 2026 (Asia/Manila). Revision `ticketpilot-apartments-00002-s9x` is Ready with 100% of service traffic. Both recorded service URLs return HTTP 200. The image digest is `sha256:36361c401d556b44c608be7694afcd784399316e27e601f9a165d833f4209472`. Eight accounts were provisioned while paused, then the site resumed. Protected workflow acceptance, independent exact-ID Firestore reads and cleanup of both synthetic concerns passed. [Deployment status](DEPLOYMENT_STATUS.md) · [Tenant access](TENANT_ACCESS.md)
+The authenticated release and eight-account Firestore registry passed live tenant/manager acceptance on November 19, 2026. Independent exact-ID reads confirmed persistence, and guarded cleanup removed the two synthetic concerns. The service was subsequently paused. Exact revisions, digests and current recorded state are in [deployment status](DEPLOYMENT_STATUS.md).
 
 ```mermaid
 flowchart TB
     B["Tenant / manager browser"] --> URL["Retained Cloud Run HTTPS URL"]
-    subgraph GCP["Target authenticated release: GCP Singapore asia-southeast1"]
-        URL --> APP["Cloud Run target: tenant login, FastAPI, UI and local retrieval"]
+    subgraph GCP["GCP Singapore asia-southeast1"]
+        URL --> APP["Cloud Run: tenant login, FastAPI, UI and local retrieval"]
         MODE["Enabled: auto min0/max1; paused: manual0"] -.-> APP
         APP -->|"Owner-bound concerns / durable sessions"| DB["Firestore: concern collections + private auth collection"]
         APP -->|"Runtime token environment values"| SEC["Secret Manager versions"]
@@ -35,7 +35,7 @@ flowchart TB
     end
 ```
 
-This is the target source architecture, not evidence that the retained old paused revision has authentication. It separates native cloud resources from local Kubernetes. Account/session persistence uses a dedicated Firestore collection; no additional hosted identity service, cloud cluster or Grafana server is added.
+Account and session persistence uses a dedicated Firestore collection. Native cloud resources and the isolated local Kubernetes validation environment have separate lifecycles.
 
 ## Service rationale
 
@@ -51,7 +51,7 @@ Use regional Artifact Registry with digest deployment, retention of the deployed
 
 ## Pause and spending boundaries
 
-The authentication release and separate GCP account provisioning completed on November 19. Terraform paused=true selects MANUAL scaling with zero instances; an explicitly verified resume of the authenticated release selects paused=false and restores automatic min0/max1. Deploy preserves the saved pause state. The address, records, images, secrets, identity and budget remain. Idle automatic scale-down alone still permits another request to start the service.
+Terraform `paused=true` selects MANUAL scaling with zero instances. Resume sets `paused=false` and restores automatic min0/max1 scaling. Image deployments preserve the saved pause state. The URL, records, images, secrets, identity and budget are retained. Automatic idle scale-down keeps the service available to new requests.
 
 Manual-zero lets in-flight requests finish and rejects new normal service-URL requests. Traffic-tag-only revisions need separate inspection before claiming every endpoint offline. A scaling-mode change does not require a new image revision. Keep state/generated variables and reconcile console changes. [Manual scaling](https://docs.cloud.google.com/run/docs/configuring/services/manual-scaling).
 
@@ -63,4 +63,4 @@ Cloud Monitoring is the native view for service request counts, errors, latency,
 
 Optional local monitor-start selects one active cloud with 300-second scraping; pause stops that monitoring. Requests can still start an enabled instance, so manager refresh remains manual with queue20. Process counters and bounded queues are not lifetime analytics. Compose/kind dashboards remain separate local demonstrations.
 
-November 19 live acceptance exercised tenant sign-in, ownership restrictions, CSRF and unit-spoof denial, manager note isolation, replies/reopening and one-success/one-conflict updates. Independent Firestore reads verified the two synthetic concerns and guarded cleanup deleted both. Existing concerns and notices were preserved. The earlier November 16 run predates tenant accounts. [GCP guide](gcp/README.txt) · [Operations](PROVIDER_OPERATIONS.md) · [Portability](CLOUD_PORTABILITY.md)
+Live acceptance covers tenant sign-in, ownership restrictions, CSRF and unit-spoof denial, manager note isolation, replies/reopening and conflicting updates. The validator independently reads only its exact synthetic Firestore documents and removes them with guarded cleanup. [Validation](VALIDATION.md) · [GCP guide](gcp/README.txt) · [Operations](PROVIDER_OPERATIONS.md)

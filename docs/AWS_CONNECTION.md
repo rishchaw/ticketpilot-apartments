@@ -1,31 +1,23 @@
-# Connect AWS for development and deployment
+# AWS credentials and local tooling
 
-On the existing PC use **AWS controls → Sign in through browser** with profile `ticketpilot`, then **Check status**. The local launcher uses the CLI. MCP is an optional agent connection. [Redeploy and monitoring controls](OPERATIONS_QUICKSTART.md)
+The AWS deployment uses the `ticketpilot` CLI profile in Singapore, `ap-southeast-1`. Terraform and deployment scripts use local development credentials. The deployed application uses its scoped Lambda execution role. [AWS deployment](AWS_DEPLOYMENT.md) · [Operations](OPERATIONS_QUICKSTART.md)
 
-The project can be written and tested without an AWS account. Live validation and deployment require an authenticated AWS identity allowed to manage the resources in `infra/`. No passwords, root access keys, or secret keys need to be pasted into chat.
+## CLI browser sign-in
 
-## Agent Toolkit setup completed in this workspace
-
-AWS CLI 2.39.6 was installed using AWS's signed Windows user installer. Browser sign-in and STS identity verification succeeded for profile `ticketpilot`, with Singapore (`ap-southeast-1`) as its default region. The current browser session uses the account's root identity; no static access keys were created.
-
-The official Agent Toolkit installed 25 default skills and registered AWS MCP for Codex, Claude Code, and Cursor. Each generated entry has `AWS_MCP_PROXY_PROFILES=ticketpilot`; generated launch commands and arguments were preserved. The toolkit service and its generated MCP endpoint use `us-east-1`. That does not change the project's Singapore deployment region. Remote skill-catalog access was verified successfully.
-
-Restart the coding client to load the new MCP server and skills. The MCP tool connection must be checked in that new session. The AWS deployment succeeded using the CLI fallback. Session expiry can require a fresh browser sign-in. The manual alternatives below are reference instructions; do not overwrite the existing `ticketpilot` login profile when adding a credential-process bridge.
-
-To use another AWS account later, run `aws login --profile <name>`, add that profile name to the space-separated `AWS_MCP_PROXY_PROFILES` list in each MCP configuration file, and restart the coding tool.
-
-## Recommended local connection for Terraform
-
-Install the current [AWS CLI v2 for Windows](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), then sign in using your console identity:
+Install the official AWS CLI v2 with support for `aws login`, then authenticate the named profile.
 
 ```powershell
 aws login --profile ticketpilot
-aws sts get-caller-identity --profile ticketpilot
+aws sts get-caller-identity --profile ticketpilot --region ap-southeast-1
 ```
 
-Complete the browser login yourself. AWS documents `aws login` as a way to use temporary console-derived credentials, with automatic refresh during the session. Use a development IAM identity rather than creating root access keys. Do not set up AWS Organizations merely to enable SSO: joining an organization can affect Free plan eligibility.
+The launcher provides the same browser flow through **AWS controls → Sign in through browser**. Renew the session when required and verify the account before changing infrastructure.
 
-For broad compatibility with Terraform and SDK credential providers, use AWS's documented credential-process bridge. The following commands write two settings to the separate local `ticketpilot-terraform` profile; they do not store the temporary keys in the config file:
+Development credentials remain local. The Lambda runtime receives its own role for database access, runtime parameters and logging. Credential values stay outside source, container images and Terraform variables.
+
+## Recommended local connection for Terraform
+
+For compatibility with credential-process consumers, configure a separate `ticketpilot-terraform` profile that exports temporary credentials from the browser session.
 
 ```powershell
 aws configure set credential_process 'aws configure export-credentials --profile ticketpilot --format process' --profile ticketpilot-terraform
@@ -36,34 +28,23 @@ aws sts get-caller-identity
 .\.venv\Scripts\python.exe scripts/preflight_aws.py
 ```
 
-Keep the AWS CLI on PATH. Re-run `aws login --profile ticketpilot` when the session expires. If you already have a working IAM Identity Center or temporary-credential profile, use it instead of replacing it.
+The bridge stores the export command in the profile configuration. Keep the AWS CLI on PATH and renew the source `ticketpilot` session when it expires. An existing working IAM Identity Center or temporary-credential profile can also be used.
 
-The authenticated deployment identity needs ECR repository/image permissions, Lambda function/URL and resource-policy management, DynamoDB table/index management, CloudWatch Logs management, SSM token parameter read/write, and permission to create the scoped execution role/policy and pass it to Lambda. Terraform also needs the corresponding read/list/tag/delete permissions. Read-only MCP access will not deploy the project. Runtime permissions are separately scoped in Terraform.
+The deployment identity needs ECR image/repository access, Lambda function/URL and resource-policy management, DynamoDB table/index management, CloudWatch Logs, SSM parameter setup, scoped role/policy creation and permission to pass the runtime role. Terraform also requires the corresponding read/list/tag/delete operations. The runtime identity is separately restricted in `infra/aws`.
 
 ## Optional AWS MCP connection
 
-An MCP server is useful for account inspection, AWS documentation, resource management, logs, and post-deployment checks. It does not replace Terraform's local AWS credential provider or Docker's image build/push access.
+AWS MCP can provide additional account inspection, documentation and resource tooling to compatible development clients. Its connection has its own IAM authorization. Terraform and Docker continue to use their configured local credential providers for deployment.
 
-The official AWS MCP endpoint in Singapore is:
+Configure an optional MCP client through the official AWS setup documentation and verify the selected account/profile before using account-changing tools. The project deployment workflow operates through the CLI and Terraform scripts.
 
-```text
-https://aws-mcp.ap-southeast-1.api.aws/mcp?oauth=initialize
-```
-
-For a Codex CLI/Desktop client with remote MCP OAuth support, register and authenticate it:
-
-```powershell
-codex mcp add aws-mcp --url 'https://aws-mcp.ap-southeast-1.api.aws/mcp?oauth=initialize'
-codex mcp login aws-mcp
-```
-
-The first command changes the client's MCP configuration. The second starts the user-controlled AWS sign-in flow. The connecting IAM identity needs the AWS MCP OAuth permissions described in AWS's setup guide (the managed policy `AWSMCPSignInOAuthAccessPolicy` covers OAuth sign-in), plus permissions for the AWS actions requested. OAuth sign-in alone grants no extra resource permissions. Reconnect/restart the client if it does not discover the newly connected tools immediately.
-
-This project's plugin search found an AWS analytics connector, but its advertised analytics capabilities are not a substitute for Lambda/IAM/Terraform deployment access. Use the official AWS MCP server or the CLI profile above.
+- [AWS CLI sign-in and credential-process sharing](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sign-in.html)
+- [AWS MCP setup](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/getting-started-aws-mcp-server.html)
+- [AWS MCP OAuth permissions](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/oauth-authentication.html)
 
 ## Host exporter for Windows login profiles
 
-The Linux exporter container cannot execute Windows AWS CLI credential processes. Run it directly on your signed-in Windows host instead:
+A Windows credential process must run on the Windows host. For the optional CloudWatch exporter, start the Python process from the repository root using the authenticated profile.
 
 ```powershell
 $env:AWS_PROFILE = 'ticketpilot'
@@ -71,26 +52,13 @@ $env:AWS_REGION = 'ap-southeast-1'
 .\.venv\Scripts\python.exe monitoring/cloudwatch_exporter.py
 ```
 
-Then, in another terminal:
+In another terminal, select the host-exporter scrape configuration and start the local dashboards.
 
 ```powershell
 $env:PROMETHEUS_CONFIG = './monitoring/prometheus/aws-host.yml'
 docker compose up -d prometheus grafana
 ```
 
-This exposes the exporter on port 9101 for Docker Desktop to reach through `host.docker.internal`. Keep it on a trusted development machine; it exposes aggregate service metrics. Stop it with Ctrl+C when finished. The main Grafana and Prometheus ports bind only to localhost.
+The exporter exposes aggregate service metrics on port 9101 for Docker Desktop through `host.docker.internal`. Stop the foreground exporter with Ctrl+C. The Grafana and Prometheus ports bind to localhost.
 
-## Sources
-
-- [User-requested Agent Toolkit setup workflow](https://raw.githubusercontent.com/aws/agent-toolkit-for-aws/refs/heads/main/setup-instructions/setup.md)
-- [AWS CLI console sign-in and credential-process sharing](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sign-in.html)
-- [Official AWS MCP setup, supported regions and Codex registration](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/getting-started-aws-mcp-server.html)
-- [AWS MCP OAuth permissions](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/oauth-authentication.html)
-- [OpenAI documentation for MCP configuration and login](https://learn.chatgpt.com/docs/extend/mcp?surface=app)
-
-## Python deployment-tool dependency
-
-Local scripts that use an `aws login` profile require Boto3 1.41+ with its CRT extra. `requirements-dev.txt` now includes `boto3[crt]>=1.41,<2`. For this existing uv-created environment, install with `uv pip install --python .venv/Scripts/python.exe "boto3[crt]>=1.41,<2"`; fresh pip-based environments can install the normal development requirements. The Lambda runtime uses its execution role and does not need browser-login CRT dependencies.
-
-An expired refresh token still requires a new browser login; installing CRT does not renew credentials or activate restricted AWS services. See the [official Boto3 console-login guidance](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html#login-with-console-credentials).
-
+The normal provider monitoring action is available through `TICKETPILOT.cmd`. See [monitoring operations](OPERATIONS_QUICKSTART.md#monitor-a-deployment) for target selection and scrape health.

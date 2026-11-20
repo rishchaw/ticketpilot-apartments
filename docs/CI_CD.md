@@ -1,36 +1,33 @@
-# CI/CD for TicketPilot Apartments
+# CI and release workflows
 
-The public repository is `rishchaw/ticketpilot-apartments`. The standalone folder is the repository root and contains the workflows in `.github`. The parent ticketpilot-ai folder contains separate projects; publishing the whole parent would put this project's workflows in a nested folder that GitHub does not run.
-
-Pushing to this repository starts CI. To put local changes on the retained AWS or GCP deployment, use **Redeploy current code** in the launcher. The separate GitHub AWS promotion requires deliberate OIDC and remote-state configuration. [Beginner redeployment](OPERATIONS_QUICKSTART.md)
+GitHub Actions validates changes to `rishchaw/ticketpilot-apartments`. Cloud deployments use explicit provider operations through the [deployment controls](OPERATIONS_QUICKSTART.md). The repository contains a manual container release workflow and a separately gated AWS promotion workflow.
 
 ## Three workflows
 
 | Workflow | Trigger | Result |
 | --- | --- | --- |
-| TicketPilot CI (`ci.yml`) | Push to main, pull request, manual run, reusable workflow call | Tests and JUnit, English/Filipino browser workflow, synthetic legacy evaluation, Docker/Prometheus/Grafana checks, Lambda runtime emulator, GCP container/Firestore emulator, local kind Kubernetes/monitoring acceptance, AWS/GCP Terraform format/validation |
-| TicketPilot container release (`release.yml`) | Manual run from the default branch | Reuses CI, builds and tests the exact app/Lambda images, pushes to GHCR and records digest/commit/run provenance plus a source archive |
-| TicketPilot AWS promotion (`deploy-aws.yml`) | Manual run with a successful release run ID | Disabled until explicitly configured; verifies provenance, uses OIDC and remote Terraform state, promotes only an existing Lambda image and runs public apartment checks |
+| [TicketPilot CI](../.github/workflows/ci.yml) | Push to main, pull request, manual run or reusable workflow call | Five validation jobs for application/browser behavior, Docker/monitoring/Lambda runtime, GCP/Firestore, local Kubernetes and Terraform |
+| [Container release](../.github/workflows/release.yml) | Manual run from the default branch | Reuses CI, builds and validates app/Lambda images, publishes to GHCR and records image digest, source commit and workflow provenance |
+| [AWS promotion](../.github/workflows/deploy-aws.yml) | Manual run with a successful release run ID | Requires configured OIDC and remote state, verifies provenance and promotes an existing Lambda image through a guarded Terraform plan |
 
-CI has read-only repository permissions and no cloud credentials. Only the release publisher can write packages; only the AWS deployment job can request an OIDC token. Actions are pinned to commit IDs. Obsolete CI runs are canceled, jobs have timeouts, and evidence artifacts are retained for three days (seven for release manifests/source). Dependabot proposes grouped weekly action/Python updates.
+CI jobs have read-only repository permissions and use fictional data without cloud deployment credentials. The release publisher can write packages. The deployment job can request an OIDC token after its gates succeed. Actions are pinned to commit IDs, jobs have timeouts and obsolete CI runs are canceled.
 
-The normal CI path makes no AWS calls and no paid model calls. The apartment browser test uses a separate fictional-data database, a temporary server and test-only access codes. Artifacts use an explicit allowlist of JSON/JUnit summaries and fictional screenshots. The workflow never uploads the full .tools directory, .env, .secrets, databases, Terraform state, or saved plans.
+Reports use allowlisted JSON/JUnit files and fictional screenshots. CI artifacts are retained for three days, and release manifests/source archives for seven days. Databases, tokens, credential inventories, Terraform state, plans and kubeconfig stay outside uploaded artifacts.
 
 ## Use the existing repository
 
-1. Authenticate with the intended GitHub account through the plugin or the official GitHub CLI browser flow. No passwords or access tokens need to be pasted into chat. Publishing workflows needs repository and workflow-write permission.
-2. Push the intended source change to the existing main branch. CI starts automatically. Confirm all five jobs pass in Actions before claiming GitHub validation succeeded.
-3. Run **TicketPilot container release** from main when you want a tested deliverable. Releases are manual to avoid rebuilding/publishing containers on every small change.
-4. Read the release summary and download `release-manifest` if needed. The manifest binds immutable image digests to the repository, commit and workflow run. Commit-addressed tags also include run/attempt IDs; deployments use digests because tags can move.
+Push or open a pull request to run CI, then inspect all five job results. The November 19 checkpoint passed in [run 44530000339](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44530000339) for source commit `af4ec96`.
 
-GHCR images are `ghcr.io/rishchaw/ticketpilot-apartments` and `ghcr.io/rishchaw/ticketpilot-apartments-lambda`. A new GHCR package may be private even when its source repo is public. Package visibility is a separate setting. The repository's GITHUB_TOKEN publishes/reads associated packages; do not add a personal access token merely to publish from this workflow.
+Run **TicketPilot container release** from main for a tested release artifact. The manifest binds immutable digests to the repository, source commit and workflow run. Tags include commit/run identifiers, while promotion selects the recorded digest.
+
+The GHCR targets are `ghcr.io/rishchaw/ticketpilot-apartments` and `ghcr.io/rishchaw/ticketpilot-apartments-lambda`. Package visibility is configured separately from repository visibility. The release uses its scoped `GITHUB_TOKEN`.
 
 ## Optional AWS promotion from GitHub
 
-The AWS workflow updates an existing Lambda image. The operator PC has already deployed AWS. Keep `AWS_DEPLOY_ENABLED` unset or false until a dedicated OIDC role, migrated state, matching settings and the promotion environment are in place. The workflow runs a live endpoint check and assumes an available site. Use the local launcher to redeploy while paused and to maintain its private deployment records.
+The promotion workflow is implemented and remains disabled until its deployment identity and state backend are configured. Keep `AWS_DEPLOY_ENABLED` unset or false during setup. The local launcher supports the retained AWS deployment and paused-image updates.
 
-1. Create a private S3 bucket in Singapore for Terraform state. Enable versioning, encryption, and public-access blocking. Back up the existing application state privately before migration. Ordinary AWS storage/request charges can apply.
-2. Add the following ignored file at `infra/aws/backend.ci.tf` locally:
+1. Create a private S3 state bucket in Singapore with versioning, encryption and public-access blocking. Back up the existing application state.
+2. Create the ignored `infra/aws/backend.ci.tf` file.
 
    ```hcl
    terraform {
@@ -38,7 +35,7 @@ The AWS workflow updates an existing Lambda image. The operator PC has already d
    }
    ```
 
-3. Migrate the existing application state interactively, using the correct private bucket/key:
+3. Migrate the existing application state interactively using the intended bucket and key.
 
    ```powershell
    $env:AWS_PROFILE = 'ticketpilot'
@@ -47,57 +44,47 @@ The AWS workflow updates an existing Lambda image. The operator PC has already d
    terraform -chdir=infra/aws state list
    ```
 
-   Confirm the state includes `aws_lambda_function.app` and `aws_dynamodb_table.tickets`. Do not enable CI against a fresh empty key when infrastructure already exists. The bootstrap ECR stack remains separately managed; migrate its state separately if you later automate that stack.
+   Verify that the migrated state includes `aws_lambda_function.app` and `aws_dynamodb_table.tickets`. The ECR bootstrap state remains separate. Existing infrastructure requires its matching state.
 
-4. Create GitHub's OIDC provider in the AWS account and a dedicated deployment role. Generate/review its scoped policy during bootstrap. It needs project-scoped ECR promotion, Lambda/Terraform read/update access, private S3 state/lock access, and parameter metadata checks. Do not grant AdministratorAccess or store static AWS access keys in GitHub. CI never reads SSM parameter values.
-5. Create the GitHub environment **aws-demo**. Restrict its deployment branches to **main**. Add a reviewer if your GitHub plan supports that feature. The environment restriction matters because its OIDC subject identifies the environment, not the branch.
-6. Bind the role trust to `aud=sts.amazonaws.com` and the exact subject `repo:rishchaw/ticketpilot-apartments:environment:aws-demo`, not a wildcard repository. See the official GitHub AWS OIDC guide linked below.
-7. Configure these non-secret variables in the aws-demo environment, then set the repository-level enable flag only when setup and service access are confirmed:
+4. Configure GitHub's OIDC provider and a dedicated deployment role. Scope permissions to the project ECR repository, Lambda/Terraform operations, S3 state/lock access and SSM parameter metadata. Runtime secret values remain outside CI.
+5. Create the GitHub environment `aws-demo` with deployment branches restricted to main. Bind the role trust to audience `sts.amazonaws.com` and exact subject `repo:rishchaw/ticketpilot-apartments:environment:aws-demo`.
+6. Set the deployment variables and enable the repository flag after state migration and identity checks succeed.
 
    | Variable | Value |
    | --- | --- |
-   | AWS_ACCOUNT_ID | Verified twelve-digit account ID |
-   | AWS_DEPLOY_ROLE_ARN | Dedicated GitHub OIDC deployment role ARN |
+   | AWS_ACCOUNT_ID | Deployment account ID |
+   | AWS_DEPLOY_ROLE_ARN | Dedicated GitHub OIDC role ARN |
    | TF_STATE_BUCKET | Private state bucket |
-   | TF_STATE_KEY | Existing migrated application-state key |
-   | AWS_DEPLOY_ENABLED | Repository variable: true only when deployment is ready |
+   | TF_STATE_KEY | Migrated application-state key |
+   | AWS_DEPLOY_ENABLED | Repository variable set to true when ready |
 
-8. Run AWS promotion from main with a successful container-release run ID and explicitly confirm activation. The selected release must belong to this repository/default branch and pass the strict manifest checks. Expired/deleted manifest artifacts require a new release run.
+7. Run promotion from main using a successful release run ID and confirmed AWS activation/service access.
 
-The deploy job checks existing table/SSM metadata/state, pulls the Lambda image by digest, verifies its revision label, runs the local Lambda emulator, and copies the same manifest into ECR. Terraform uses S3 locking and a saved local plan. The plan guard permits only a known existing Lambda image update; creates, deletes, replacements, unrelated drift and configuration changes are rejected. Review infrastructure changes separately rather than bypassing the guard. Bedrock configuration is not automatically enabled or altered.
+The job verifies release provenance, checks existing table/parameter/state metadata, pulls the Lambda image by digest, verifies its revision label and runs the Lambda emulator before promotion to ECR. Terraform applies a saved plan restricted to the known Lambda image update. Creates, deletes, replacements and unrelated drift fail the guard.
 
-The public smoke check checks apartment pages/configuration and access denial plus legacy retrieval; it creates no live tenant records. Full acceptance still includes an authorized manager/tenant test as described in AWS_DEPLOYMENT.md. A successful container release alone is not an AWS deployment. Prometheus/Grafana stay local, and AWS-only monitoring does not aggregate apartment counters across Lambda environments.
+The public smoke test checks routes, access denial and retrieval. Full tenant workflow acceptance is an explicit operation with current authorized credentials. The promotion expects an available endpoint. Local provider controls maintain private deployment records and support the paused workflow.
 
-To roll back an image, select an earlier successful release with a retained manifest and run the same manual promotion. The existing-state and image-only rules still apply. If configuration changed since that release, stop and review infrastructure/state instead.
+To roll back an image, select an earlier successful release with a retained manifest and use the same promotion workflow. Infrastructure/configuration changes require separate plan review.
 
 ## GCP deployment boundary
 
-GCP uses its own Terraform bootstrap/application roots and `Dockerfile.gcp` with the optional Firestore dependency. The Cloud Run image must be built from that Dockerfile; the existing GHCR app/Lambda release is not automatically a Firestore-enabled release. Local GCP deployment uses the browser-authenticated `ticketpilot-gcp` CLI configuration and ADC through `scripts/deploy_gcp.py`. No GCP MCP connection, GitHub service-account key, GCP remote-state bucket or GitHub-to-GCP deployment identity has been installed by this setup.
+GCP uses `Dockerfile.gcp`, separate bootstrap/application Terraform roots and its Firestore dependency. Deployment runs through the browser-authenticated CLI configuration and ADC in `scripts/deploy_gcp.py`, invoked by the shared lifecycle controls.
 
-The GCP Terraform roots have been validated locally with Google provider locks for Linux and Windows. CI includes a credential-free job that builds `Dockerfile.gcp`, runs the isolated Firestore emulator validator and retains allowlisted GCP metadata/validation reports for three days. Its Terraform job validates all four AWS/GCP roots with readonly provider locks and no cloud backend. Hosted GCP checks passed in run 43913020484; CI configuration, local validation and actual deployment remain separate evidence. The current AWS promotion workflow does not deploy to GCP. A future manual GCP promotion can use GitHub OIDC through Workload Identity Federation after remote-state and deployment permissions are deliberately configured; do not upload a long-lived service-account JSON key to GitHub. See [Google's deployment pipeline federation guide](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
-
-Prometheus/Grafana stay in local Compose, and the GCP profile disables paid AI calls and automatic manager polling. GitHub runner allowances do not cover Cloud Run, Firestore, image storage or other application-hosting usage. The optional USD 10 GCP budget sends alerts only; it does not enforce a project-wide cost ceiling.
+CI builds the GCP image and runs the real Firestore emulator without cloud credentials. The Terraform job validates all four roots with readonly provider locks and backend access disabled. GitHub-to-GCP deployment identity and remote-state setup remain future configuration. A GitHub deployment workflow can use Workload Identity Federation when those components are established. [Google deployment pipeline federation](https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines)
 
 ## Local verification
 
-`actionlint` checks all workflow files. The Python suite covers malformed manifests, wrong repository/commit/run provenance, fork/PR releases, mutable image references, and destructive/unrelated Terraform plans. The existing real-browser, Docker-stack and Lambda-emulator validators remain runnable without GitHub or AWS. Hosted GitHub execution must be observed separately; local checks do not establish that external permissions work.
-
-## Free platform choices
-
-The project uses GitHub Actions with standard hosted runners. Check included usage and artifact or package storage in your account before changing repository visibility or runner types. The links below give current allowances for the earlier platform comparison.
-
-Official references:
-
-- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-- [GitHub included usage](https://docs.github.com/en/billing/reference/product-usage-included)
-- [GitHub Container Registry billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
-- [GitHub AWS OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
-- [Terraform S3 backend and state locking](https://developer.hashicorp.com/terraform/language/backend/s3)
-- [GitLab compute minutes](https://docs.gitlab.com/ci/pipelines/compute_minutes/)
-- [CircleCI pricing](https://circleci.com/pricing/)
+The Python suite tests malformed manifests, repository/commit/run mismatches, mutable image references, fork/PR release rejection and destructive/unrelated Terraform plans. `actionlint` checks the workflows. Browser, Docker-stack and Lambda/Firestore validators are also available through the [validation guide](VALIDATION.md).
 
 ## Local Kubernetes verification
 
-The additional credential-free Kubernetes CI job installs checksum-verified kind 0.33.0 and kubectl 1.36.1, creates only the isolated ticketpilot-portfolio kind cluster, deploys the application/Prometheus/Grafana manifests, and runs real acceptance through localhost forwards. Cleanup runs even after failures and deletes only its verified owned demonstration cluster. The only Kubernetes artifact is .tools/kubernetes-validation.json, retained for three days. No kubeconfig, Secrets, tenant databases or raw pod logs are uploaded.
+The Kubernetes CI job creates the isolated `ticketpilot-portfolio` kind cluster, deploys the application, Prometheus and Grafana, and validates the stack through localhost forwards. It checks probes, limits, workflow behavior, monitoring and PVC persistence. Cleanup deletes the verified owned cluster even after a failure. Only the allowlisted validation summary is uploaded.
 
-This job uses local Docker compute on the GitHub runner. It has no GCP/AWS deployment identity, does not create GKE/EKS infrastructure and does not change the Cloud Run service state. See [the local Kubernetes guide](KUBERNETES.md). All five jobs, including Kubernetes acceptance and cleanup, passed in [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882) for source commit 4401872. Check current Actions results before extending that claim to later code changes.
+This job runs Kubernetes on the GitHub runner's local Docker engine. Application cloud hosting uses Lambda or Cloud Run, and the kind job has no cloud deployment identity. [Kubernetes configuration](KUBERNETES.md)
+
+## References
+
+- [GitHub Actions usage and billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+- [GitHub Container Registry billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
+- [GitHub AWS OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
+- [Terraform S3 state and locking](https://developer.hashicorp.com/terraform/language/backend/s3)

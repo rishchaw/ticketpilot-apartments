@@ -1,8 +1,8 @@
 # How the project uses the deployment stack
 
-Use the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) for the menu steps. For the modules, storage adapters, image contents and development-only files behind each service, consult the [codebase usage review](CODEBASE_USAGE.md).
+Use the [operations guide](OPERATIONS_QUICKSTART.md) for the menu steps. For the modules, storage adapters, image contents and development-only files behind each service, consult the [codebase usage review](CODEBASE_USAGE.md).
 
-TicketPilot is one modular application. Its tenant, manager and retrieval modules share a release. Managed cloud services provide separate compute, storage, identity, images and telemetry. Calling each application module a deployed microservice would overstate this design; eight units do not justify independent services and queues yet.
+TicketPilot is one modular application. Tenant, manager and retrieval modules share a release. Managed cloud services supply compute, persistence, runtime identity, images and telemetry.
 
 | Technology | What it does here | Where to inspect it |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ python -m venv .venv
 
 For GCP also install its SDK adapter: `.\.venv\Scripts\python.exe -m pip install -r requirements-gcp.txt`.
 
-The existing PC environment and private .env should be preserved. setup_local.py reuses existing values. Read GRAFANA_ADMIN_PASSWORD privately from .env; Grafana username is admin. The manager code is ADMIN_TOKEN and is distinct from the metrics token. Never publish these values. Keep packaged classifier artifacts from the repository; GPU training is not required for hosting.
+Preserve an existing environment and private `.env`. `setup_local.py` reuses its current values. Grafana uses username `admin` and `GRAFANA_ADMIN_PASSWORD`. The separate manager and metrics credentials are `ADMIN_TOKEN` and `METRICS_TOKEN`. Packaged classifier artifacts support CPU serving without retraining.
 
 ## Use one provider
 
@@ -36,7 +36,7 @@ The existing PC environment and private .env should be preserved. setup_local.py
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
 ```
 
-For GCP use gcp and --project YOUR-GCP-PROJECT-ID after its CLI/ADC login. Follow [provider operations](PROVIDER_OPERATIONS.md) before switching. Default deploy builds/validates the selected image; optional monitoring starts separately. GCP was started and its eight-account workflow verified on November 19 while AWS remained paused. Prepare is already complete for this GCP installation. Provider switching preserves independent datasets; it does not migrate concerns or their tracking links.
+For GCP use `gcp` and `--project YOUR-GCP-PROJECT-ID` after CLI/ADC sign-in. Follow [provider operations](PROVIDER_OPERATIONS.md) when switching environments. Deployment builds and validates the selected image. Monitoring starts separately. Each provider retains its own accounts, concerns and tracking links.
 
 ## Use Prometheus and Grafana
 
@@ -66,6 +66,6 @@ The cloud application's counters belong to individual process/container lifetime
 .\.venv\Scripts\python.exe scripts/kubernetes_local.py stop
 ```
 
-The helper uses a project-owned kind cluster, private kubeconfig, isolated credentials and fictional SQLite data. Stop deletes only that verified demo cluster/PVC. It does not deploy EKS/GKE or migrate native cloud records. See [Kubernetes setup and forwarding](KUBERNETES.md) for required kind/kubectl versions and exact validator options. Hosted CI already exercised this demo; do not claim the earlier interrupted PC attempt passed.
+The helper uses an owned kind cluster, private kubeconfig, isolated credentials and fictional SQLite data. Stop removes the verified demo cluster and its PVC. [Kubernetes setup and forwarding](KUBERNETES.md) documents required tools and validator options. Hosted results are linked from [validation](VALIDATION.md).
 
 The IT demo performs CPU classification and local retrieval. The apartment workflow selects bilingual guidance by category. Optional Bedrock generation is preserved, disabled by default. Real building procedures, tenant onboarding, backups and data retention need deliberate review before using real tenant data.

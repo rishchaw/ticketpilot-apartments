@@ -116,3 +116,22 @@ def test_password_guidance_and_unpopulated_public_schema_remain_reviewable_sourc
     write(source_tree, "docs/auth-schema.json", json.dumps(schema))
     selected = names(source_tree)
     assert {"docs/password-guidance.json", "docs/auth-schema.json"} <= selected
+
+
+def test_private_local_notes_and_legacy_study_guide_are_excluded(source_tree):
+    private_files = [
+        ".local-notes/RESUME_STUDY_GUIDE.md",
+        "docs/.local-notes/operator-history.md",
+        "ticketpilot/.local-notes/personal-notes.md",
+        "scripts/.LOCAL-NOTES/local-instructions.md",
+        "docs/RESUME_STUDY_GUIDE.md",
+    ]
+    for name in private_files:
+        write(source_tree, name, "private local material")
+    public_document = "docs/ARCHITECTURE_AWS.md"
+    write(source_tree, public_document, "public architecture")
+
+    selected = names(source_tree)
+
+    assert not set(private_files).intersection(selected)
+    assert public_document in selected

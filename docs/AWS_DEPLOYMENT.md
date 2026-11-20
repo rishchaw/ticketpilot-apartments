@@ -1,6 +1,6 @@
 # Deploy TicketPilot to AWS
 
-For the existing installation use **AWS controls → Redeploy current code**. The last recorded AWS release includes tenant login and eight provisioned accounts. It was paused after the image update. Live tenant sign-in on this release still needs an explicit resume and acceptance check. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [deployment evidence](DEPLOYMENT_STATUS.md).
+Use the shared lifecycle command or the **AWS controls** launcher menu to build, deploy, pause and resume the application. The recorded AWS deployment has the authenticated image and eight accounts, with hosted sign-in acceptance pending. [Operations](OPERATIONS_QUICKSTART.md) · [Deployment status](DEPLOYMENT_STATUS.md)
 
 ## Architecture and prerequisites
 
@@ -13,7 +13,7 @@ aws login --profile ticketpilot
 .\.venv\Scripts\python.exe scripts/preflight_aws.py --profile ticketpilot --region ap-southeast-1
 ```
 
-Read-only identity/service success does not establish every create/pass-role permission. Inspect exact failures rather than widening permissions or upgrading the plan automatically. Use browser credentials, not long-lived keys pasted into chat/source. If a separate Terraform-compatible local profile is needed, configure it privately and supply --terraform-profile; do not publish exported credentials.
+Preflight verifies the selected identity and service reads. Creation and role-passing permissions are checked when their operations run. Use browser credentials and keep any Terraform-compatible profile private. Supply `--terraform-profile` when a separate compatible profile is required.
 
 ## Shared lifecycle entry point
 
@@ -27,7 +27,7 @@ Run from the standalone repository root:
 
 Central deploy builds the Lambda image unless explicitly reusing an accepted image with --skip-build/--local-image, then runs native bootstrap/deploy and apartment acceptance. The native implementation is scripts/deploy_aws.py with preflight, bootstrap, deploy, pause, resume and status stages. The old deploy_aws.ps1 is a legacy path; use the central/native Python lifecycle for the new guards/settings. Check current --help for options.
 
-Deploy/resume changes cloud resources and requires the exclusive-provider guard. GCP was enabled on November 19. Pause it and verify its state before enabling AWS. For the narrow recorded-paused case, --confirm-other-offline is explicit operator attestation plus fresh expected unavailable HTTP results at every known URL. It cannot override authenticated active/traffic-tagged state or a reachable endpoint. Do not delete a record or bypass a failed pause to satisfy this guard. [Operations](PROVIDER_OPERATIONS.md) explains switching and its data boundary.
+Deploy/resume changes cloud resources and requires the exclusive-provider guard. Pause any serving GCP deployment and verify its state before enabling AWS. For the narrow recorded-paused case, --confirm-other-offline is explicit operator attestation plus fresh expected unavailable HTTP results at every known URL. It cannot override authenticated active/traffic-tagged state or a reachable endpoint. Do not delete a record or bypass a failed pause to satisfy this guard. [Operations](PROVIDER_OPERATIONS.md) explains switching and its data boundary.
 
 The two AWS Terraform roots have independent state:
 
@@ -40,7 +40,7 @@ The reviewed table/index mode is PAY_PER_REQUEST. Versioned conditional writes r
 
 ## Concurrency, pause and cost controls
 
-The observed account concurrency quota is 10, so enabled reserved_concurrency=-1 uses the shared/unreserved regional pool. This is not a dedicated per-function limit of one. A small reservation is selected only if the quota permits it; the deployment report must record the actual fallback. Reserved concurrency is different from paid provisioned concurrency, which is not enabled here. Any configured DynamoDB request maxima are best-effort throttling controls, not billing caps.
+The helper selects a small reserved-concurrency value when the account quota permits it. A recorded `reserved_concurrency=-1` uses the shared/unreserved regional pool and supplies no dedicated per-function limit. Provisioned concurrency is disabled. DynamoDB request maxima provide best-effort throttling.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
@@ -72,7 +72,7 @@ Use Lambda/CloudWatch for deployed invocation/error/throttle/duration metrics an
 
 Monitoring is opt-in and local: Prometheus/Grafana authenticate a selected-cloud scrape every 300 seconds. Deploy/resume never starts it automatically; pause stops it and retains local volumes. Requests still consume usage. Local counters reset per Lambda environment and are not global queue/lifetime totals. The optional older CloudWatch exporter is another local API-polling integration with possible charges.
 
-Docker/kind provide a separate fictional-data Kubernetes demonstration with no EKS deployment. Its hosted CI acceptance is recorded independently; the interrupted PC attempt is not claimed as passed. [Kubernetes guide](KUBERNETES.md).
+Docker and kind provide an isolated fictional-data Kubernetes validation environment. Hosted CI acceptance is recorded separately from cloud deployment. [Kubernetes guide](KUBERNETES.md)
 
 Paid AI stays off in the apartment rollout. Optional Bedrock generation remains in the original /demo flow and requires deliberate model/region/access/cost review before enable_bedrock=true. It is not required to deploy the concern tracker. CPU inference and cited local retrieval continue without paid model calls.
 

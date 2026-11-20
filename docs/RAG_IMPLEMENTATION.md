@@ -1,34 +1,42 @@
-# Retrieval and optional RAG in TicketPilot
+# Retrieval and optional generation
 
-**Live trial on November 19, 2026.** The owner API on the operator PC sent a fictional IT ticket to Nova Micro in Sydney. Model availability reported authorized. Converse returned HTTP 403 with account verification pending. The API saved the temporary ticket and returned `KB-007` in `retrieval_fallback` mode. Hosted generation is disabled. [Code paths](CODEBASE_USAGE.md)
+The IT demo at `/demo` uses packaged runbooks for retrieval and cited response steps. An optional owner-requested Bedrock adapter can draft from retrieved context. Hosted configurations select `LLM_PROVIDER=none`, and the public `/api/analyze` endpoint uses retrieval only.
 
-The current low-cost configuration uses local retrieval. Optional Bedrock generation is implemented for the original IT support demo, and LLM_PROVIDER=none keeps it disabled. The apartment portal currently uses fixed English/Filipino guidance selected by concern category; it does not generate answers from property documents.
+The apartment portal uses hand-authored English/Filipino guidance selected by concern category. Its concern workflow has a separate domain and access boundary.
 
 ```mermaid
 flowchart LR
-    Q["IT demo question"] --> R["Local TF-IDF and cosine similarity"]
-    KB["Packaged knowledge_base.json articles"] --> R
+    Q["IT demo question"] --> R["TF-IDF and cosine similarity"]
+    KB["Packaged runbook articles"] --> R
     R --> A["Up to three relevant articles"]
-    A --> D["Default: cited article steps"]
-    A -->|"Owner explicitly requests AI; Bedrock enabled"| G["Generated draft with supplied article IDs"]
+    A --> D["Cited article steps"]
+    A -->|"Explicit owner request and Bedrock enabled"| G["Draft using supplied article IDs"]
+    G --> V["Citation validation"]
+    V --> F["Generated draft or retrieval fallback"]
 ```
 
 ## What the code does
 
-1. [knowledge.py](../ticketpilot/knowledge.py) reads [knowledge_base.json](../data/knowledge_base.json). Each complete article is one retrieval document; there is no PDF-ingestion/chunking pipeline or hosted vector database.
-2. A cached TfidfVectorizer uses word unigrams/bigrams, English stopwords and up to 6,000 features. Titles and tags receive extra weight. Search uses cosine similarity, discards scores below 0.08, adds a small matching-category boost and returns the top 3 by default.
-3. [assistant.py](../ticketpilot/assistant.py) normally formats the best article's steps and escalation, citing its KB identifier. When no article clears the threshold it asks for human investigation instead of forcing an answer.
-4. The owner-only original support workflow may explicitly request generation. If Bedrock is enabled and articles exist, the Converse request includes only their IDs/titles/summaries/steps/escalations plus the question. The prompt treats question/articles as untrusted data, requests answers only from supplied sources and requires KB citations.
-5. The code rejects missing citations and IDs outside the retrieved set. This checks reference IDs; it does not prove every generated statement is supported. Provider errors, invalid citations and rate limits fall back to the local article response.
+1. [knowledge.py](../ticketpilot/knowledge.py) loads [knowledge_base.json](../data/knowledge_base.json), treating each complete article as one retrieval document.
+2. A cached `TfidfVectorizer` uses word unigrams/bigrams, English stopwords and up to 6,000 features. Titles and tags receive additional weight. Cosine similarity ranks articles, scores below 0.08 are discarded, a matching-category boost is applied and the default result contains up to three articles.
+3. [assistant.py](../ticketpilot/assistant.py) formats the best article's steps and escalation guidance with its KB identifier. If relevance is insufficient, the response asks for human investigation.
+4. For explicit generation, the Bedrock Converse request includes the question and retrieved article IDs, titles, summaries, steps and escalation guidance. Instructions treat question/article content as untrusted input and require citations to the supplied sources.
+5. Citation validation rejects missing IDs and references outside the retrieved set. Provider errors, invalid citations and rate limits return the retrieval fallback. Factual support for each generated statement requires additional answer evaluation.
 
-Generation has a 400-token output limit and temperature 0.1. A five-minute, 128-entry process cache avoids repeated identical calls. The default 3 attempts/minute limit is per process/environment, not a global billing cap. Paid generation stays off in both current provider configurations. The public /api/analyze endpoint always uses retrieval only.
+## Generation controls
+
+The adapter uses a 400-token output limit and temperature 0.1. A five-minute, 128-entry process cache avoids repeated identical calls. The default limit is three uncached provider attempts per minute per process/environment. Application-level limits and caching complement provider billing controls.
+
+The November 19, 2026 live trial reached Nova Micro in Sydney and returned HTTP 403 with account verification pending. The API returned `KB-007` in `retrieval_fallback` mode. Successful live generation remains pending. Mocked tests cover citations, caching, rate limits and provider errors. [Validation evidence](VALIDATION.md)
 
 ## Apartment scope and privacy
 
-Tenant concern submissions do not call the Bedrock path. The apartment GUIDANCE dictionary is generic bilingual intake assistance, not a model trained on the building or a search over leases, bills or notices.
+Tenant submissions follow category-based bilingual intake guidance. Property-document ingestion and authenticated apartment-specific retrieval remain future work. Such a path requires approved FAQs/procedures, document access rules and English/Taglish evaluation.
 
-The existing knowledge base belongs to the public IT demo: /api/knowledge and retrieval responses expose its contents. Do not add private leases, bills, passwords or tenant records to that shared JSON file. Apartment-specific RAG would need management-approved FAQs/procedures, a separate authenticated knowledge path, tenant/manager document access rules and evaluation for English/Taglish. Those features are not claimed as implemented.
+The IT knowledge base is public through `/api/knowledge` and retrieval responses. Store only public demonstration content in that file. Keep leases, bills, credentials and tenant records in their authorized application data paths.
 
-Docker packages the same local retrieval code for AWS/GCP. DynamoDB, Firestore and SQLite store concerns/authentication; they are not currently vector stores. Changing packaged articles requires a tested image update. See [operations](OPERATIONS_QUICKSTART.md) for Start versus Redeploy, and [tenant access](TENANT_ACCESS.md) for the current account boundary.
+Docker packages the retrieval assets for both providers. SQLite, DynamoDB and Firestore persist concerns and authentication records. Changes to packaged runbooks require a tested image update. [Codebase map](CODEBASE_USAGE.md) · [Tenant access](TENANT_ACCESS.md)
 
-Prometheus records answer mode, retrieved-source counts, provider success/fallback attempts and provider latency through ticketpilot/observability.py. These are runtime-process metrics, not a durable billing ledger or proof of answer accuracy. Grafana includes the provider-fallback rate; cloud billing remains separate.
+## Observability
+
+`ticketpilot/observability.py` records answer mode, retrieved-source count, provider attempt outcome and provider latency. Grafana includes a provider-fallback panel. These process metrics reset with the runtime and should be interpreted alongside native cloud telemetry and billing.

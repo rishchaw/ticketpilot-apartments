@@ -1,138 +1,110 @@
-TICKETPILOT APARTMENTS - AWS
-===========================
-Checkpoint: November 18, 2026 (Asia/Manila).
-Run commands from the standalone ticketpilot-aws repository root.
+TICKETPILOT APARTMENTS - AWS DEPLOYMENT
+====================================
 
-BEGINNER REDEPLOY
-1. In ticketpilot-aws double-click TICKETPILOT.cmd. Open Docker Desktop from Local.
-2. Under AWS controls, sign in with ticketpilot if needed. Check that GCP is paused.
-3. To publish changed code choose Redeploy current code. It builds the image and
-   applies Terraform. To bring back the already deployed release, skip Redeploy.
-4. Check status. When ready to serve tenants, choose Start existing portal and
-   check for HTTP 200. Open tenant portal or manager dashboard from the same menu.
-5. For charts choose Start local Prometheus/Grafana. Under Dashboards open
-   Prometheus targets or Grafana. Use Stop portal and cloud scrapes after the demo.
-   An intentionally paused Lambda returns HTTP 429.
+Run commands from the repository root containing TICKETPILOT.cmd.
+The AWS path deploys the shared FastAPI application to Lambda in Singapore
+(ap-southeast-1), with native persistence, identity, secrets and monitoring.
 
-Full walkthrough: docs/OPERATIONS_QUICKSTART.md. Code map: docs/CODEBASE_USAGE.md.
+Architecture and deployment details are in docs/ARCHITECTURE_AWS.md and
+docs/AWS_DEPLOYMENT.md. Verified images, checks and recorded service state are
+summarized in docs/DEPLOYMENT_STATUS.md.
 
-STATUS
-------
-The authenticated tenant release (digest prefix 722722a0) is deployed in AWS
-Singapore and intentionally paused: Function URL HTTP429. Eight approved unit
-accounts and individual private handouts are ready. The 312 local tests, real
-browser acceptance and Lambda emulator passed. No hosted tenant login test was
-run while the user's stop was maintained. No plan upgrade or paid AI enablement.
-
-Retained tenant URL: https://f76rtnytvzpyuw53oueg5il2by0gbpzc.lambda-url.ap-southeast-1.on.aws/tenant
-It remains unavailable until an explicit verified resume. The login page is
-public after resume; the portal/configuration/concern APIs require authorization.
-
-Account units: 1A,1B,2A,2B,2C,3A,3B,3C. Operator inventory is privately stored at
-.secrets/tenant-credentials.json; per-unit handouts are under .secrets/tenant-logins/.
-Share each handout privately with its assigned resident; never publish passwords
-or the whole inventory. See docs/TENANT_ACCESS.md for onboarding and revocation,
-and docs/DEPLOYMENT_STATUS.md for final image/runtime evidence.
-
-ARCHITECTURE AND RATIONALE
---------------------------
-Lambda container/Function URL; DynamoDB PAY_PER_REQUEST table/recent-record index;
-Standard SSM SecureString tokens; ECR digest images; scoped execution role;
-CloudWatch native metrics/logs. Eight-account admission, password hashes, durable
-sessions and revocation use private rows in the existing DynamoDB table. No
-additional hosted identity service is added. Terraform: infra/bootstrap and infra/aws.
-One modular FastAPI domain/UI is shared with GCP; its Lambda runtime wrapper,
-SDK adapters, identities and Terraform remain native to AWS. AI stays off;
-a November 19 live Bedrock request returned a verification-related 403 and the app used its cited fallback.
-Diagrams/rationale: docs/ARCHITECTURE_AWS.md and docs/CLOUD_PORTABILITY.md.
-
-PREPARE AUTHENTICATION AND TOOLS
---------------------------------
-Use AWS CLI v2, Terraform, the existing Python environment and Docker Desktop
-for local image builds. Keep the working .venv; requirements-dev.txt supplies
-local validation dependencies. Profile ticketpilot; region ap-southeast-1.
+REQUIREMENTS
+------------
+Install Python 3.11, AWS CLI v2, Terraform and Docker Desktop with a Linux engine.
+Use requirements-dev.txt for local validation. Fresh-clone environment setup is
+documented in docs/STACK_GUIDE.md. Retained deployments also require their existing
+private Terraform state, settings, deployment records and matching secrets.
 
   aws login --profile ticketpilot
   .\.venv\Scripts\python.exe scripts/preflight_aws.py --profile ticketpilot --region ap-southeast-1
 
-Identity login alone does not prove every create permission. No AWS MCP tools
-are exposed in the current session, so deployment uses the CLI fallback. Stop on
-service/authentication errors; do not upgrade the plan automatically. No static
-keys need to be pasted into chat or stored in source. MCP is optional/separate.
-ADMIN_TOKEN and METRICS_TOKEN stay private; SSM names are
-/ticketpilot-aws/admin-token and /ticketpilot-aws/metrics-token. Values upload
-outside Terraform state. Preserve matching cloud tokens unless rotating deliberately.
+Browser sign-in supplies short-lived CLI credentials. Resource creation and
+role-passing permissions are checked during deployment. Keep private credentials
+and Terraform profiles outside version control.
 
-CENTRAL DEPLOYMENT AND OPERATIONS
----------------------------------
-The final interface is provider first, action second:
+DEPLOYMENT
+----------
+For launcher controls, run .\TICKETPILOT.cmd and choose AWS controls. The central
+CLI provides the same provider lifecycle.
 
-  .\.venv\Scripts\python.exe scripts/cloud.py --help
   .\.venv\Scripts\python.exe scripts/cloud.py aws status --profile ticketpilot
   .\.venv\Scripts\python.exe scripts/cloud.py aws deploy --profile ticketpilot
-  .\.venv\Scripts\python.exe scripts/cloud.py aws pause --profile ticketpilot
-  .\.venv\Scripts\python.exe scripts/cloud.py aws resume --profile ticketpilot
 
-Deploy runs the AWS bootstrap and application stages. It builds the image unless
---skip-build is supplied. On an enabled site, normal acceptance checks health
-and anonymous access. A paused site skips online acceptance. Testing a complete
-tenant submission requires explicit --validate-tenant-workflow and a current
-private credentials file. The native scripts/deploy_aws.py stages are preflight,
-bootstrap, deploy, pause, resume, status. The old PowerShell entry remains legacy;
-use the central/native Python paths for the streamlined lifecycle.
+Deploy runs the bootstrap and application stages. It builds Dockerfile.lambda
+for Linux/amd64, validates the image through the Lambda runtime emulator, pushes
+to ECR and applies an immutable image digest. --skip-build --local-image can reuse
+an already built image, which must still satisfy the validation requirements.
 
-Deploy/resume CHANGE CLOUD RESOURCES. The exclusive guard blocks another active
-or unknown configured provider. A narrow --confirm-other-offline exception needs
-explicit operator attestation, recorded paused=true and fresh expected unavailable
-HTTP results at every known URL when authenticated reads fail. It cannot override
-an authenticated active or traffic-tagged deployment. An auth failure is not
-successful authenticated verification. See docs/PROVIDER_OPERATIONS.md.
+Terraform roots have independent state.
+  infra/bootstrap    ECR and optional budget configuration
+  infra/aws          Lambda/Function URL, DynamoDB, execution role and logs
 
-The tenant-authenticated image and eight-account readiness must be verified
-before resume; do not enable an older image that lacks login protection.
-Pause sets reserved concurrency 0 and verifies Function URL HTTP 429; resume restores
-the reviewed enabled setting. Normal deploy preserves the saved pause state.
-Data/index, parameters, images, identity and state remain. The initial regional concurrency quota is 10,
-so reserved_concurrency=-1 uses the shared/unreserved pool instead of a dedicated
-reservation. It is not a one-request or billing ceiling. Provider-specific Terraform and private generated
-settings remain separate; never apply empty state over existing resources.
+ADMIN_TOKEN and METRICS_TOKEN use Standard SSM SecureString parameters. Secret
+values are uploaded outside Terraform state. Password hashes and persisted
+sessions use private records in the existing DynamoDB table. Account provisioning
+and reset operations are described in docs/TENANT_ACCESS.md.
 
-VALIDATION, MONITORING AND COST
--------------------------------
-Before promotion, run application tests, Terraform validation and Lambda emulator
-checks for the exact image. After apply, record URL/digest and validate independent
-DynamoDB persistence, tracking privacy, manager-note isolation, replies/reopening
-and version conflicts with fictional records plus guarded cleanup. CI does not
-prove current cloud IAM/account access. See docs/AWS_DEPLOYMENT.md for details.
+START AND STOP
+--------------
+Start resumes the retained image. Redeploy publishes changed code. Deployment
+preserves the saved paused setting.
 
-Use Lambda/CloudWatch for deployed metrics/logs. Monitoring is optional/local:
+  .\TICKETPILOT.cmd aws start
+  .\TICKETPILOT.cmd aws status
+  .\TICKETPILOT.cmd aws stop
+
+Pause sets reserved concurrency to zero and verifies Function URL HTTP 429.
+Resume restores the reviewed enabled setting. A reported value of -1 uses the
+regional shared/unreserved pool and supplies no dedicated per-function ceiling.
+Data, accounts, images, parameters, identity and Terraform state are retained.
+
+The central guard checks the other configured provider before deploy/resume.
+Its narrow --confirm-other-offline exception requires explicit attestation,
+recorded paused state and fresh expected unavailable HTTP at every known URL.
+An authenticated active provider remains blocked. See docs/PROVIDER_OPERATIONS.md.
+
+VALIDATION
+----------
+CI covers application/browser behavior, container monitoring, the Lambda runtime
+emulator and Terraform configuration. Live acceptance separately verifies public
+access restrictions and selected synthetic tenant/manager workflows, with exact-ID
+DynamoDB persistence reads and guarded cleanup.
+
+Routine lifecycle checks use health and anonymous-access checks. Full tenant
+workflow acceptance requires --validate-tenant-workflow and current authorized
+credentials. The recorded authenticated AWS image passed local/browser/emulator
+checks. Hosted sign-in acceptance for that image remains pending.
+
+MONITORING AND COST CONTROLS
+---------------------------
+CloudWatch provides native invocation, error, throttle, duration and execution-log
+views. Optional local Prometheus/Grafana monitor only the selected serving cloud.
 
   .\.venv\Scripts\python.exe scripts/cloud.py aws monitor-start --profile ticketpilot
   .\.venv\Scripts\python.exe scripts/cloud.py aws monitor-stop --profile ticketpilot
 
-It starts only local Prometheus/Grafana with authenticated 300-second scraping of
-the selected active cloud; pause stops it and retains local volumes. Deploy/resume
-does not start monitoring automatically. No hosted AWS Grafana/Prometheus tier is
-created. Scrapes/API polling still consume usage; process counters are not global
-queue totals. Kubernetes remains an isolated local kind exercise, not EKS.
+The 300-second authenticated scrape invokes the cloud endpoint. Pause stops local
+cloud monitoring and retains its volumes. Process counters reset per execution
+environment. Local kind Kubernetes validation is documented in docs/KUBERNETES.md.
 
-USD 10/month is an alert target, not a cap. Check actual credits, allowances and
-expiry in the console. On-demand DynamoDB request billing differs from provisioned
-free capacity. Retained ECR/database/logs and KMS/API use can still consume credit.
-Optional budget email requires an explicitly supplied local recipient, for example
---budget-alert-email YOUR-EMAIL-ADDRESS; never guess one or claim installed alerts
-before checking. No paid-plan upgrade or capacity purchase is automatic.
+Paid AI is disabled by default. The separate IT demo retains CPU classification,
+runbook retrieval and an optional Bedrock adapter. See docs/RAG_IMPLEMENTATION.md.
 
-Double-click STOP_SERVICES.cmd or run scripts/stop_services.py to stop local
-workloads and independently pause both recorded providers. --provider aws or
---provider gcp selects one; --local-only contacts neither. Inspect each result:
-expired login is a failure, not a verified pause. Real data remains retained.
+The optional USD 10 email budget requires an explicit recipient through
+--budget-alert-email. Alerts warn about spend. Monitor gross cost, account
+credits and retained-resource charges independently. Database/image storage,
+logs and API usage can incur charges while the application is paused.
 
-Pause is not destruction. Review protection/data retention separately before
-teardown. Preserve both AWS states, generated .tfvars, accepted digests and private
-backups outside Git. Do not delete a URL, database, billing link or state to stop
-idle compute. Provider switching does not migrate tenant records or tracking links.
+STOP_SERVICES.cmd stops local workloads and attempts independent pauses of both
+recorded clouds. --provider aws selects AWS, and --local-only skips cloud calls.
+Inspect the result for each attempted operation. Teardown requires a separate
+review of data retention, resource protection and the matching Terraform states.
 
-Related: docs/PROVIDER_OPERATIONS.md, docs/ARCHITECTURE_AWS.md,
-docs/ARCHITECTURE_GCP.md, docs/CLOUD_PORTABILITY.md, docs/gcp/README.txt,
-docs/KUBERNETES.md, docs/CI_CD.md.
+Related documentation
+  docs/OPERATIONS_QUICKSTART.md
+  docs/PROVIDER_OPERATIONS.md
+  docs/ARCHITECTURE_AWS.md
+  docs/CLOUD_PORTABILITY.md
+  docs/TENANT_ACCESS.md
+  docs/CI_CD.md

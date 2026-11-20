@@ -1,12 +1,12 @@
 # Cloud portability and deployment choices
 
-The portable application runs on each provider using its own data and credentials. On November 19 GCP was prepared and enabled with live tenant-login acceptance. AWS remains paused on its authenticated release. Switching providers preserves their independent datasets. [Beginner guide](OPERATIONS_QUICKSTART.md) · [Deployment evidence](DEPLOYMENT_STATUS.md) · [Measured GCP baseline](CLOUD_BENCHMARKS.md)
+TicketPilot shares application behavior across independently deployable AWS and GCP paths. Each environment uses its own data, credentials and Terraform state. The [deployment record](DEPLOYMENT_STATUS.md) contains verified rollout results. [Operations](OPERATIONS_QUICKSTART.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
 
 ## One application, native cloud adapters
 
 TicketPilot is one modular FastAPI application for eight apartment units. Tenant/manager screens, concern workflow, private tracking, version checks, the NumPy classifier and local TF-IDF retrieval share a release. Modules separate domain behavior, persistence, optional AI and metrics. This keeps deployment and troubleshooting manageable for the building's actual workload.
 
-Managed databases, registries and secret stores are platform services, not separately deployed TicketPilot microservices. Prometheus/Grafana belong to optional local Compose/kind demonstrations; they are not public cloud application tiers.
+Compute wrappers and storage adapters connect the shared application to native databases, registries, identity and secret services. Prometheus and Grafana run in optional local Compose or kind environments.
 
 ```mermaid
 flowchart TB
@@ -50,8 +50,8 @@ Keep one cloud serving the demonstration at a time. Lambda execution and DynamoD
 
 Cloud Run is request-based with automatic min0/max1 when enabled and manual0 when paused; Firestore keeps data independently. Singapore serves the intended users, while regional prices/shared billing-account allowances still apply. [Cloud Run pricing](https://cloud.google.com/run/pricing), [Firestore quotas](https://docs.cloud.google.com/firestore/quotas).
 
-USD 10/month is an alert target, not a hard cap. Check the reported AWS USD 100 credit and GCP trial balance/expiry independently. Storage, logs, secret accesses, traffic and optional monitoring requests can consume credit while resources remain. No plan upgrades or capacity commitments are automatic.
+The GCP budget uses a USD 10/month alert target. AWS email alerts are optional and require a configured recipient. Account credits, expiry and retained-resource charges must be monitored independently. Storage, logs, secret accesses, traffic and monitoring requests can consume usage while the deployment is retained.
 
-Paid AI stays off. CPU inference and local retrieval exercise the ML workflow without a hosted embedding, GPU or vector database. The November 19 Bedrock request reached Nova Micro in Sydney and received a verification-related 403. The IT demo returned its cited fallback. [RAG test result](RAG_IMPLEMENTATION.md)
+Paid AI is disabled by default. CPU inference and TF-IDF retrieval run within the application image. The optional Bedrock integration supports an explicitly requested IT-demo generation path with retrieval fallback. [AI implementation and validation](RAG_IMPLEMENTATION.md)
 
-Local kind demonstrates Deployments, Services, ConfigMaps/Secrets, probes, limits, PVCs and observability without GKE/EKS. Hosted CI acceptance proves the runner's local demonstration, not a hosted cloud cluster or the interrupted PC run. See [Kubernetes](KUBERNETES.md) and [CI/CD](CI_CD.md).
+The kind environment exercises Deployments, Services, ConfigMaps, Secrets, probes, resource limits, persistent storage and monitoring. Hosted CI acceptance covers an isolated Kubernetes cluster on the runner. [Kubernetes](KUBERNETES.md) · [CI/CD](CI_CD.md)

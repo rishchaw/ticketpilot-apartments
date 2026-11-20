@@ -1,8 +1,8 @@
 # Local Kubernetes demonstration
 
-For the complete local exercise choose **Local Docker and Kubernetes → Start and validate isolated Kubernetes demo**. Use Check Kubernetes demo to see ready replicas. Open a separate launcher window for each Forward action. [Beginner controls](OPERATIONS_QUICKSTART.md)
+For the complete local exercise choose **Local Docker and Kubernetes → Start and validate isolated Kubernetes demo**. Use Check Kubernetes demo to see ready replicas. Open a separate launcher window for each Forward action. [Operations](OPERATIONS_QUICKSTART.md)
 
-TicketPilot includes a local kind deployment for demonstrating Kubernetes alongside the separate Terraform cloud paths. It runs on Docker Desktop on this PC and creates no GKE/EKS cluster, cloud load balancer or new cloud billing resource. The GCP site can remain paused throughout this demonstration. Check [deployment status](DEPLOYMENT_STATUS.md) for actual validation and offline state; commands and manifests alone are not evidence of a successful run.
+TicketPilot includes an isolated kind deployment for local Kubernetes validation. Docker Desktop provides the local container engine. The application, Prometheus and Grafana run in a dedicated namespace with fictional data. [Deployment status](DEPLOYMENT_STATUS.md) records completed validation runs.
 
 ## What the deployment exercises
 
@@ -28,7 +28,7 @@ Private demo credentials are generated into `.secrets/kubernetes-demo.json`, wit
 
 ## Prepare and start when wanted
 
-These commands create local Docker/Kubernetes resources and consume this PC's CPU, memory and disk. They do not resume Cloud Run:
+These commands create local Docker/Kubernetes resources and consume local CPU, memory and disk. They do not resume Cloud Run:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/kubernetes_local.py --help
@@ -88,13 +88,13 @@ The real Compose data volumes, GCP Firestore records, cloud images/secrets/budge
 
 For the real local Compose stack, `docker compose --profile local stop` retains its data volumes; `docker compose --profile local up -d` starts that stack again. Those commands are separate from kind and cloud scaling. To pause/resume the existing Cloud Run service through Terraform, use [the GCP guide](GCP_DEPLOYMENT.md#temporarily-pause-and-resume). Retained cloud storage/secrets can still consume allowances, and the USD 10 budget is an alert rather than a cap. No billing-plan upgrade is required.
 
-## Evidence and portfolio scope
+## Validation evidence
 
-All five jobs in [CI run 44023034882](https://github.com/rishchaw/ticketpilot-apartments/actions/runs/44023034882) passed for source commit 4401872. Real Kubernetes acceptance verified workloads, privacy, monitoring and PVC persistence after app-pod replacement, then removed its owned cluster successfully. This is GitHub Linux-runner runtime evidence; the interrupted PC attempt is not claimed as a completed PC runtime test.
+The Kubernetes CI job verifies workloads, tenant/manager privacy, monitoring and PVC persistence after app-pod replacement, then removes its owned cluster. The [validation record](VALIDATION.md) links successful hosted runs and their source commits.
 
 Record actual rollout, probe/resource checks, tenant/manager privacy, authenticated app scraping, Grafana provisioning and SQLite persistence after replacing the app pod. Preserve only redacted summaries or fictional screenshots. A manifest review does not establish that these checks passed; the latest observed results belong in [deployment status](DEPLOYMENT_STATUS.md).
 
-This path demonstrates local Kubernetes workload configuration, storage and observability. GCP Cloud Run deployment and AWS Terraform remain separate provider implementations. The project does not claim a hosted GKE/EKS deployment, multi-node availability or automated provider failover. GitHub CI and cloud deployment are also separate; see [CI/CD](CI_CD.md) for the actual workflow coverage.
+This environment exercises local Kubernetes workload configuration, storage and observability. Cloud Run and Lambda remain separate provider deployments. [CI/CD](CI_CD.md) describes the validation and delivery workflows.
 
 On Windows, double-click STOP_SERVICES.cmd in the repository root to run the stop helper. Docker stays off if already offline. Future cloud actions require renewed Google CLI/ADC browser sign-in; local kind does not use Google credentials.
 

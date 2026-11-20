@@ -28,3 +28,7 @@ infra/aws/backend.ci.tf
 *.tfvars.json
 gha-creds-*.json
 application_default_credentials.json
+
+# Local study guides and operator notes
+.local-notes/
+/docs/RESUME_STUDY_GUIDE.md

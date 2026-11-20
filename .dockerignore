@@ -21,3 +21,7 @@ data/synthetic_tickets.csv
 *.tfvars.json
 gha-creds-*.json
 application_default_credentials.json
+
+# Local study guides and operator notes
+.local-notes
+**/.local-notes

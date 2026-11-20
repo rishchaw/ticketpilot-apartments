@@ -1,8 +1,8 @@
 # AWS architecture and rationale
 
-To operate this diagram use **AWS controls** for Lambda and **Dashboards, services and costs** for DynamoDB, ECR, SSM and CloudWatch. See the [beginner redeploy and monitoring guide](OPERATIONS_QUICKSTART.md) and [file-to-service map](CODEBASE_USAGE.md).
+The AWS deployment uses Lambda and DynamoDB in Singapore. Shared FastAPI routes serve tenant and manager interfaces, with native runtime, persistence, identity and infrastructure. [Operations](OPERATIONS_QUICKSTART.md) · [Code map](CODEBASE_USAGE.md)
 
-Checkpoint November 18, 2026 (Asia/Manila): the tenant-authentication image (digest prefix 722722a0) is deployed to AWS Singapore and intentionally paused with Function URL HTTP429. Eight admitted DynamoDB accounts and individual private handouts are ready. The initial 312 local tests, real browser workflow and Lambda emulator passed; hosted tenant login was not exercised while the requested stop was preserved. GCP was subsequently prepared and started on November 19. See [deployment evidence](DEPLOYMENT_STATUS.md) and [tenant access](TENANT_ACCESS.md).
+The authenticated image and eight-account DynamoDB registry have been deployed. The last recorded service state is paused. Local browser and Lambda-emulator acceptance passed. Hosted sign-in acceptance for this image remains pending. Exact digests and dated results are in [deployment status](DEPLOYMENT_STATUS.md).
 
 ```mermaid
 flowchart TB
@@ -35,7 +35,7 @@ flowchart TB
     end
 ```
 
-The native infrastructure remains unchanged. The new paused image and eight-account registry are present; full hosted login acceptance remains distinct from successful local/browser/emulator checks and from historical pre-authentication cloud acceptance. The optional budget is not installed because no alert recipient was supplied; local monitoring is optional.
+The authentication registry uses the existing DynamoDB table. The optional email budget requires an explicit recipient and is unconfigured in the recorded deployment. Prometheus and Grafana are optional local workloads.
 
 ## Service rationale
 
@@ -49,11 +49,11 @@ Use ECR for the Lambda image and deploy an immutable digest. Registry storage co
 
 ## Runtime and cost controls
 
-Keep paid AI disabled and avoid provisioned concurrency. A supported small reserved-concurrency value limits simultaneous work without keeping environments warm. The initial observed regional quota is 10, so this account uses reserved_concurrency=-1 (shared/unreserved) rather than a dedicated small reservation. Record that fallback explicitly. The unreserved fallback is not a one-request or spending ceiling. Any configured DynamoDB request ceilings are best-effort throttling controls, not billing caps.
+The default configuration disables paid AI and provisioned concurrency. A supported reserved-concurrency value limits simultaneous work. When the regional quota cannot support the selected reservation, the helper records the shared/unreserved setting as `reserved_concurrency=-1`. This setting supplies no dedicated per-function concurrency ceiling. DynamoDB request ceilings provide best-effort throttling.
 
 Terraform pause sets reserved concurrency zero, giving Function URL HTTP429 responses. Resume restores the reviewed enabled setting. Retain the URL, table/index, parameters, image, role and state. Deleting/recreating the Function URL gives a different address. [Function URL deactivation](https://docs.aws.amazon.com/lambda/latest/dg/urls-configuration.html), [reserved concurrency](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html).
 
-The optional USD 10 budget sends alerts rather than enforcing a cap. Email alerts need an explicitly supplied recipient; never guess one or claim installation before checking. Check gross spend, credit balance/expiry and actual allowances. No paid-plan upgrade or commitment purchase occurs automatically. [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html).
+The optional USD 10 budget sends email alerts to an explicitly configured recipient. Monitor gross spend, account credits and expiry independently. Retained storage, logs and API use can incur charges while compute is paused. [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html)
 
 ## Native monitoring and separate local tooling
 
@@ -61,6 +61,6 @@ Use Lambda/CloudWatch for deployed invocations, errors, throttles, duration and 
 
 Prometheus/Grafana are optional local Compose/kind workloads. Central monitor-start selects only the active cloud and scrapes on a 300-second interval; pause stops local cloud monitoring. Scrapes still invoke the cloud endpoint and can consume usage. The existing optional CloudWatch exporter is another local integration with API charges. None is an always-running AWS monitoring server in this architecture.
 
-App counters reset per execution environment and do not form global queue totals. The manager queue reads stored records and remains authoritative for the bounded records shown. One domain application plus native managed services is a modular monolith, not a fabricated collection of TicketPilot microservices.
+App counters reset with each execution environment. The manager queue reads persisted concern records. CloudWatch supplies the service-wide invocation view. The application remains a single modular deployment with native managed services.
 
 Deployment evidence must include the exact digest, storage mode, AI-off setting, private tracking/manager-note isolation, version conflicts and independent DynamoDB persistence with fictional records/guarded cleanup. CI and local Lambda emulation do not prove current account permissions. See [operations](PROVIDER_OPERATIONS.md), [AWS guide](aws/README.txt) and [portability](CLOUD_PORTABILITY.md).

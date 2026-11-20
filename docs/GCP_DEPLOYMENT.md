@@ -1,8 +1,8 @@
 # Deploy TicketPilot to Google Cloud
 
-The existing GCP site was prepared and started on November 19, with eight accounts and live workflow acceptance. Use **GCP controls → Stop portal and cloud scrapes** to pause it, **Start existing portal** to resume, and **Redeploy current code** for code changes. **Prepare first tenant-login deployment** is an initial rollout operation already completed here. See the [beginner guide](OPERATIONS_QUICKSTART.md), [deployment evidence](DEPLOYMENT_STATUS.md) and [latency baseline](CLOUD_BENCHMARKS.md). The lower-level commands below explain the individual stages.
+Use **GCP controls** or the shared CLI for explicit deployment and scaling operations. **Prepare first tenant-login deployment** builds the protected image while paused and provisions the initial eight-account registry. Subsequent releases use **Redeploy current code** and retain existing accounts. [Operations](OPERATIONS_QUICKSTART.md) · [Deployment status](DEPLOYMENT_STATUS.md) · [Latency baseline](CLOUD_BENCHMARKS.md)
 
-The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for observed results: preparation and authentication do not establish a successful cloud deployment.
+The GCP path runs the same apartment application on Cloud Run in Singapore (`asia-southeast1`) with Firestore for durable records. The service can be intentionally paused while its URL and stored data are retained; check the latest deployment status before treating a retained URL as an available website. Terraform keeps GCP infrastructure separate from the existing AWS roots. See [deployment status](DEPLOYMENT_STATUS.md) for the image, runtime and acceptance results associated with a rollout.
 
 ## Shared lifecycle entry point
 
@@ -32,7 +32,7 @@ The optional Terraform budget sends alerts to default billing-account recipients
 
 ## Prerequisites and sign-in
 
-Use an existing dedicated project with trial billing already linked. Confirm remaining trial credit, trial expiry, account permissions and any organization policies in the Cloud Console. Do not automatically upgrade the billing plan. See [Google Cloud trial terms](https://docs.cloud.google.com/free/docs/free-cloud-features).
+Use a dedicated project with billing linked. Confirm service permissions, organization policies and applicable credit or trial terms before deployment. See [Google Cloud trial terms](https://docs.cloud.google.com/free/docs/free-cloud-features).
 
 Install Python 3.11, Docker Desktop, Terraform and the [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install). Start Docker, then work from this standalone repository root. Install `requirements-dev.txt` for application validation and `requirements-gcp.txt` for the optional Firestore client. `Dockerfile.gcp` installs the GCP requirements independently of the AWS Lambda image.
 
@@ -48,7 +48,7 @@ gcloud auth application-default login
 gcloud auth application-default set-quota-project YOUR-PROJECT-ID
 ```
 
-Skip `configurations create` if it already exists. CLI login and Application Default Credentials (ADC) are separate: Terraform and the Python Firestore client use ADC. Cloud Run uses its attached runtime service account. Do not create or download a long-lived service-account JSON key. No GCP MCP server is configured by this project; CLI access does not imply an MCP connection. See [local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment).
+Skip `configurations create` if it already exists. CLI login and Application Default Credentials (ADC) are separate: Terraform and the Python Firestore client use ADC. Cloud Run uses its attached runtime service account. Do not create or download a long-lived service-account JSON key. The deployment helpers use the CLI and ADC directly. See [local ADC setup](https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment).
 
 The signed-in user needs permission to enable required APIs, create the repository/secrets/runtime identity, manage the project's scoped IAM bindings and deploy Cloud Run. Creating a database additionally requires Firestore permissions. Creating an alert budget additionally requires billing-account budget permissions; leave `create_budget=false` if those are unavailable. Review existing permissions instead of adding broad permanent administrator credentials to the app.
 
@@ -112,7 +112,7 @@ A successful Terraform apply is only the infrastructure step. When the service i
 .\.venv\Scripts\python.exe scripts/validate_gcp_deployment.py --url https://SERVICE.run.app --project YOUR-PROJECT-ID --env-file .env --credentials-file .secrets/gcp-tenant-credentials.json
 ```
 
-The deployed validator reads the manager code from the local private environment file, creates two clearly synthetic concerns, checks private tracking/manager updates/reopening/version conflicts, and independently verifies their exact Firestore documents through ADC. It never lists real manager queues or collections and does not publish a building notice. Cleanup targets only its own matching synthetic IDs with update-time preconditions. Its report is `.tools/gcp-deployment-validation.json`. Separately verify record persistence across a replacement Cloud Run revision. Use fictional records and preserve existing data. Never upload manager codes, private tracking links or real tenant screenshots as portfolio artifacts. Keep a record of which checks actually ran and their results in `DEPLOYMENT_STATUS.md`.
+The deployed validator reads the manager code from the local private environment file, creates two clearly synthetic concerns, checks private tracking/manager updates/reopening/version conflicts, and independently verifies their exact Firestore documents through ADC. It never lists real manager queues or collections and does not publish a building notice. Cleanup targets only its own matching synthetic IDs with update-time preconditions. Its report is `.tools/gcp-deployment-validation.json`. Separately verify record persistence across a replacement Cloud Run revision. Use fictional records and preserve existing data. Public artifacts must contain only redacted summaries or fictional screenshots. Keep a record of which checks actually ran and their results in `DEPLOYMENT_STATUS.md`.
 
 Share `/tenant` or a QR code only after these checks pass. A public link does not verify tenant identity. Keep report-specific tracking links private, review building guidance and decide retention before a real tenant pilot. Prometheus counters reset per process and are not the authoritative concern queue.
 
@@ -160,7 +160,7 @@ docker compose --profile local stop
 docker compose --profile local up -d
 ```
 
-Stopping local Docker does not pause Cloud Run. The optional [local Kubernetes demonstration](KUBERNETES.md) uses kind on this PC and creates no GKE/EKS resources. Its own stop command deletes only its disposable demo cluster/data; it does not remove real Compose volumes or cloud records.
+Stopping local Docker does not pause Cloud Run. The optional [local Kubernetes demonstration](KUBERNETES.md) uses kind on the local workstation and creates no GKE/EKS resources. Its own stop command deletes only its disposable demo cluster/data; it does not remove real Compose volumes or cloud records.
 
 ## Stop or remove the demonstration
 

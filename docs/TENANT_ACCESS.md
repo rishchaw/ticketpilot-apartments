@@ -1,6 +1,6 @@
 # Tenant access and private account administration
 
-Both providers have eight approved tenant accounts, fixed unit ownership and private browser sessions. AWS remains paused. On November 19 the authenticated release and separate account registry were deployed to GCP and live sign-in/workflow acceptance passed. The GCP site was subsequently paused at the user’s request. [Deployment status](DEPLOYMENT_STATUS.md)
+The admission registry supports exactly eight approved tenant accounts. Each identity has fixed unit ownership and persistent browser sessions. Separate account inventories are maintained for local, AWS and GCP environments. [Deployment status](DEPLOYMENT_STATUS.md)
 
 ## Accounts and delivery
 
@@ -17,7 +17,7 @@ Both providers have eight approved tenant accounts, fixed unit ownership and pri
 
 There is no public signup. The admission registry must contain exactly eight approved identities. Management provisions those identities and gives each tenant only their own username and password. A password authenticates its holder to the account; residents must keep it private.
 
-The AWS operator's ignored local inventory is `.secrets/tenant-credentials.json`. Initial per-unit delivery files are under `.secrets/tenant-logins/`, such as `unit-1a.txt`. Each handout contains only that unit's login, password and tenant portal URL. Keep the full inventory with the operator; share each handout individually through a private channel or on paper. Never post credentials in the Messenger group, chat transcripts, GitHub, Terraform variables/state, container images, logs or screenshots. No delivery messages are sent automatically.
+The AWS operator's ignored local inventory is `.secrets/tenant-credentials.json`. Initial per-unit delivery files are under `.secrets/tenant-logins/`, such as `unit-1a.txt`. Each handout contains only that unit's login, password and tenant portal URL. Keep the full inventory with the operator; share each handout individually through a private channel or on paper. Keep credentials outside shared messages, version control, Terraform state, images, logs and public screenshots. No delivery messages are sent automatically.
 
 Tenant-chosen passwords are not copied back to the operator's local inventory. The inventory and original handout therefore become an initial-onboarding record after a tenant changes their password. Do not rerun provisioning to overwrite a tenant-chosen password. If access is lost, use the explicit reset operation below. A reset updates the inventory but does not automatically rewrite an existing text handout: replace the affected unit's handout before distributing it again.
 
@@ -49,11 +49,11 @@ The same authentication modules use a separate SQLite table locally, private Dyn
 
 Use a separate private inventory for each environment, such as `.secrets/gcp-tenant-credentials.json` for an intentionally configured GCP deployment and `.secrets/local-tenant-credentials.json` for local development. Account/session data is not replicated or migrated when switching providers. Local browser, Lambda emulator, Firestore emulator and kind validation generate isolated fictional accounts instead of reading the AWS inventory.
 
-The initial **GCP controls → Prepare first tenant-login deployment** rollout completed on November 19. It applied the protected image while paused and provisioned eight separate Firestore accounts. GCP uses `.secrets/gcp-tenant-credentials.json`. Routine Start, Stop and Redeploy reuse them. Subsequent GCP account administration uses `gcp` in the same wrapper. [Provider controls](OPERATIONS_QUICKSTART.md)
+The initial **GCP controls → Prepare first tenant-login deployment** operation applies the protected image while paused and provisions the registry. GCP uses `.secrets/gcp-tenant-credentials.json`. Routine Start, Stop and Redeploy reuse existing accounts. Subsequent GCP account administration uses `gcp` in the same wrapper. [Provider controls](OPERATIONS_QUICKSTART.md)
 
 ## First login for the local Docker app
 
-For a new local SQLite demo, set `APARTMENT_UNITS=1A,1B,2A,2B,2C,3A,3B,3C` in the private `.env` before starting the app. From the project folder run the following PowerShell commands. The inventory stays on this PC. The last command passes it directly to the app container.
+For a new local SQLite demo, set `APARTMENT_UNITS=1A,1B,2A,2B,2C,3A,3B,3C` in the private `.env` before starting the app. From the project folder run the following PowerShell commands. The inventory stays on the local workstation. The last command passes it directly to the app container.
 
 ```powershell
 .\TICKETPILOT.cmd local app-start
@@ -83,4 +83,4 @@ From the project directory:
 
 Or double-click `STOP_SERVICES.cmd` to stop local workloads and independently pause both recorded clouds. `--local-only` contacts neither cloud. Inspect each result: an expired cloud login is an unverified pause, while retained database/image/secret storage can still incur costs. Pausing does not delete accounts, concerns or Terraform state. Follow [provider operations](PROVIDER_OPERATIONS.md) for later explicit resume and rollout verification.
 
-Routine deploy/resume performs read-only health and anonymous-access checks without reading tenant passwords. Explicit --validate-tenant-workflow --credentials-file is available when the operator has current authorized credentials; it creates only owned synthetic concerns and cleans them up. Initial handouts may be stale after tenant-selected password changes. Native resume refuses a retained image without a matching validated authentication-release record; GCP must receive this release before it can resume through these helpers.
+Routine deploy/resume performs read-only health and anonymous-access checks without reading tenant passwords. Explicit --validate-tenant-workflow --credentials-file is available when the operator has current authorized credentials; it creates only owned synthetic concerns and cleans them up. Initial handouts may be stale after tenant-selected password changes. Native resume refuses a retained image without a matching validated authentication-release record; A newly configured GCP deployment must complete image validation and account provisioning before resume.
